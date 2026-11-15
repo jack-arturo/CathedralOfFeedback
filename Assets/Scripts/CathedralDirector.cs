@@ -26,7 +26,8 @@ namespace CathedralOfFeedback
 
         float time, drumOpen = 1f, passMix, windowMix;
         static readonly int ViewId = Shader.PropertyToID("_CathedralView");
-        float calibTime, calibPeak, rigOffset, playerHeight = 1.6f;
+        float calibTime, calibPeak, rigOffset, playerHeight = 1.6f, unwornTime;
+        bool centred;
         /// <summary>Virtual: just the building. Windows: the real room in stereo passthrough behind the lancet glass. Open: the walls dissolve into the real room. RoomInGlass: the passthrough camera as a leaded mosaic in the windows.</summary>
         public enum Mode { Virtual, Windows, Open, RoomInGlass }
         int mode;
@@ -38,6 +39,7 @@ namespace CathedralOfFeedback
         {
             mode = (mode + 1) % 4;
             Debug.Log("[Cathedral] mode " + (Mode)mode);
+            if (Narrator.Instance != null) Narrator.Instance.OnMode((Mode)mode);
             var audioHost = CathedralAudio.Instance;
             if (audioHost != null && audioHost.Dsp != null) audioHost.Dsp.Chime(880f * Mathf.Pow(2f, new[] { 0f, 3f, 7f, 10f }[mode] / 12f));
         }
@@ -114,6 +116,26 @@ namespace CathedralOfFeedback
             // floor: when the headset's floor estimate is that far out (common when it has no
             // boundary for the room), slide the rig so the virtual floor meets the player's feet.
             // Checked continuously, so it also catches the next person to put the headset on.
+            // The building forms around whoever is wearing the headset: the tracking origin can be
+            // metres away from where they stand (it moves with the guardian), so when someone puts
+            // the headset on, slide the rig until they are under the lantern.
+            bool worn = Application.isEditor || OVRPlugin.userPresent;
+            if (!worn) unwornTime += dt;
+            else
+            {
+                if (head != null && (!centred || unwornTime > 10f) && time > 0.5f)
+                {
+                    Vector3 hp = head.position;
+                    if (new Vector2(hp.x, hp.z).sqrMagnitude > 0.09f)
+                    {
+                        head.root.position -= new Vector3(hp.x, 0f, hp.z);
+                        Debug.Log($"[Cathedral] recentred on the wearer (was {hp.x:F1},{hp.z:F1} from the middle)");
+                    }
+                    centred = true;
+                }
+                unwornTime = 0f;
+            }
+
             if (head != null)
             {
                 float y = head.position.y;

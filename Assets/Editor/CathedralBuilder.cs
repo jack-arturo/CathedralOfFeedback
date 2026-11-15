@@ -114,6 +114,26 @@ public static class CathedralBuilder
         var analyzer = audio.AddComponent<SpectrumAnalyzer>();
         Set(analyzer, "audioHost", host);
 
+        // AutoJack's voice: a spoken tour, plus a bell and choir for the drop. Clips live in Assets/Audio.
+        var narratorGo = new GameObject("Narrator");
+        var voiceSrc = narratorGo.AddComponent<AudioSource>();
+        voiceSrc.playOnAwake = false; voiceSrc.spatialBlend = 0f; voiceSrc.volume = 1f; voiceSrc.priority = 0;
+        var fxSrc = narratorGo.AddComponent<AudioSource>();
+        fxSrc.playOnAwake = false; fxSrc.spatialBlend = 0f; fxSrc.volume = 0.9f;
+        var narrator = narratorGo.AddComponent<Narrator>();
+        Set(narrator, "voice", voiceSrc); Set(narrator, "effects", fxSrc);
+        foreach (var (prop, file) in new[]
+        {
+            ("welcome", "vo_welcome"), ("grabHint", "vo_grab_hint"), ("held", "vo_held"), ("plantHint", "vo_plant_hint"),
+            ("plantDone", "vo_plant_done"), ("throwHint", "vo_throw"), ("both", "vo_both"), ("drop", "vo_drop"),
+            ("prism", "vo_prism"), ("world", "vo_world"), ("bell", "sfx_bell"), ("choir", "sfx_choir"),
+        })
+        {
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>($"Assets/Audio/{file}.wav");
+            if (clip == null) throw new System.Exception($"Missing audio clip Assets/Audio/{file}.wav");
+            Set(narrator, prop, clip);
+        }
+
         // The building. Meshes are generated at runtime by CathedralArchitect.
         var root = new GameObject("Cathedral");
         var architect = root.AddComponent<CathedralArchitect>();

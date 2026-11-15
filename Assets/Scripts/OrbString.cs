@@ -51,6 +51,7 @@ namespace CathedralOfFeedback
                     if (dsp != null) dsp.Drop();
                     if (field != null) field.Flash(1f);
                     if (SeedGarden.Instance != null) SeedGarden.Instance.Strike((pa + pb) * 0.5f, 1f);
+                    if (Narrator.Instance != null) Narrator.Instance.OnDrop();
                     Debug.Log("[Cathedral] drop");
                 }
 
