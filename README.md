@@ -125,3 +125,9 @@ runs the real synth, analyser and feedback loop offline for a scripted 20 s perf
 20 s wall clock) and writes stills, the raw field and `mix.wav` to `Previews/`, with loudness and
 sub-100 Hz statistics in the log. It needs a graphics device, so do not add `-nographics`.
 Set `CATHEDRAL_PREVIEW_WAKE=0` to render the room asleep, as a new wearer first sees it.
+
+## Licence
+
+MIT; see [LICENSE](LICENSE). The Meta XR SDK packages it depends on carry their own licences. AutoJack's
+spoken lines in `Assets/Audio` are generated from a cloned voice and are included for this project;
+please do not reuse them to voice anything else.
