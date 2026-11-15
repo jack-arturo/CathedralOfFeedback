@@ -1,0 +1,36 @@
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+.vs/
+.idea/
+.DS_Store
+*.csproj
+*.sln
+.mcp.json
+.ai-game-dev/
+*.log
+*.apk
+*.aab
+.cottagecode-unity.lock
+# Meta SDK creates these local editor bridge credentials on import.
+Assets/Resources/DevAgentSettings.asset*
+Assets/Resources/MetaXRFeatureEnablerSettings.asset*
+mono_crash.*
+Assets/Resources/PerformanceTestRun*.json*
+.utmp/
+Assets/InitTestScene*.unity*
+Assets/Resources/OVRBuildConfig.asset*
+
+__pycache__/
+*.pyc
+
+.superpowers/
+cottage-config.json*
+*.user.json
+
+# Meta generates these empty runtime binding files during Android builds.
+Assets/StreamingAssets/RuntimeActionBindings.json*
+*.log
