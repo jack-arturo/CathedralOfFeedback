@@ -61,6 +61,7 @@ public static class CathedralBuilder
         var src = audio.AddComponent<AudioSource>();
         src.playOnAwake = false; src.spatialBlend = 0f;
         audio.AddComponent<ProceduralBeat>();
+        var beatLp = audio.AddComponent<AudioLowPassFilter>(); beatLp.cutoffFrequency = 22000f;
         audio.AddComponent<SpectrumAnalyzer>();
 
         // Cathedral: octagonal ring of wall tiles, floor, spinning lattice ceiling.
@@ -108,6 +109,9 @@ public static class CathedralBuilder
             alphaKeys = new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(0, 1) } };
         tr.shadowCastingMode = ShadowCastingMode.Off; tr.receiveShadows = false; tr.emitting = false;
         var go = orb.AddComponent<GrabbableOrb>(); go.Trail = tr;
+        var voice = orb.AddComponent<OrbVoice>();
+        new SerializedObject(voice).FindProperty("beatFilter").objectReferenceValue = beatLp;
+        var vso = new SerializedObject(voice); vso.FindProperty("beatFilter").objectReferenceValue = beatLp; vso.ApplyModifiedProperties();
         var echo = orb.AddComponent<TrailEcho>();
         new SerializedObject(echo).FindProperty("ghostMaterial").objectReferenceValue = ghostGlow;
         var so = new SerializedObject(echo); so.FindProperty("ghostMaterial").objectReferenceValue = ghostGlow; so.ApplyModifiedProperties();
