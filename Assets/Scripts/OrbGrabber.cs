@@ -30,11 +30,23 @@ namespace CathedralOfFeedback
         Transform thumbTip, indexTip, middleTip, ringTip, littleTip, palm;
         bool pinching, gripping, handOpen = true, vibrating;
         Vector3 probe;
-        float lostTime;
+        float lostTime, catchGrace, catchPeak;
         Vector3 lastPoint;
         float menuHold, menuCooldown;
 
         void OnEnable() { All.Add(this); }
+
+        /// <summary>
+        /// A returning comet met this (empty) hand: the orb is in it now. The hand was probably
+        /// open, so the orb stays for a moment without a grip; closing the hand keeps it, and a
+        /// fling of the open hand throws it straight back.
+        /// </summary>
+        public void Catch(GrabbableOrb orb)
+        {
+            if (held != null || orb == null || orb.IsHeld) return;
+            held = orb; catchGrace = 1.5f; catchPeak = 0f;
+            orb.CatchInto(this);
+        }
 
         void ResolveBones()
         {
@@ -93,7 +105,7 @@ namespace CathedralOfFeedback
                 bool hasGrip = Grip(out float span, out Vector3 gripPoint);
                 gripping = hasGrip && (gripping ? span < 0.092f : span < 0.076f);
                 handOpen = !hasGrip || span > 0.095f;
-                Vector3 want = pinching || !gripping ? pinchPoint : gripPoint;
+                Vector3 want = (pinching || !gripping) && catchGrace <= 0f ? pinchPoint : gripPoint;     // a caught orb sits in the palm
                 // Ease between the two anchor points so a held orb never jumps when the grip changes.
                 GrabPoint = held != null ? Vector3.Lerp(GrabPoint, want, 0.35f) : want;
                 probe = gripping && !pinching ? gripPoint : pinchPoint;
@@ -127,9 +139,18 @@ namespace CathedralOfFeedback
                 }
                 if (pick != null) { held = pick; held.Grab(this); }
             }
-            else if (!down && held != null)
+            else if (down) catchGrace = 0f;              // the hand has closed on it: an ordinary hold from here
+            else if (held != null)
             {
-                held.Release(); held = null;
+                if (catchGrace > 0f)
+                {
+                    catchGrace -= dt;
+                    catchPeak = Mathf.Max(catchPeak, held.Speed);
+                    bool flung = catchPeak > 1.5f && held.Speed < catchPeak * 0.75f;
+                    if (flung) { catchGrace = 0f; held.Release(); held = null; }
+                    else if (catchGrace <= 0f) { held.Release(false); held = null; }     // never closed on it: it goes home
+                }
+                else { held.Release(); held = null; }
             }
 
             // Menu gesture. Needs a deliberate middle pinch so playing never triggers it.

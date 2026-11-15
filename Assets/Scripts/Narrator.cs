@@ -13,11 +13,11 @@ namespace CathedralOfFeedback
     public class Narrator : MonoBehaviour
     {
         public static Narrator Instance { get; private set; }
-        public enum Fx { Bell, Choir, Shatter, Rise }
+        public enum Fx { Bell, Choir, Shatter, Rise, Catch }
 
-        [SerializeField] AudioSource voice, effects;
-        [SerializeField] AudioClip welcome, grabHint, held, plantHint, plantDone, throwHint, both, drop, prism, world, harvest;
-        [SerializeField] AudioClip bell, choir, shatter, rise;
+        [SerializeField] AudioSource voice, effects, choirSource;
+        [SerializeField] AudioClip welcome, grabHint, held, plantHint, plantDone, throwHint, both, drop, prism, world, harvest, catchHint, catchDone, bloom;
+        [SerializeField] AudioClip bell, choir, shatter, rise, catchFx;
         [Tooltip("Seconds off the head before the tour is reset for the next wearer.")]
         [SerializeField] float resetAfter = 20f;
         [Tooltip("How far the music is pulled down while AutoJack speaks.")]
@@ -25,7 +25,7 @@ namespace CathedralOfFeedback
 
         int stage;
         float timer, gap = 10f, wornTime, offTime, heldFor, duck, dropAt = -1f;
-        bool saidGrabHint, saidPlantHint, saidWorld, saidDrop, saidHarvest, dropped;
+        bool saidGrabHint, saidPlantHint, saidWorld, saidDrop, saidHarvest, saidCatchHint, saidCatchDone, saidBloom, dropped;
         AudioClip pending;
 
         void Awake() { Instance = this; }
@@ -34,7 +34,7 @@ namespace CathedralOfFeedback
         void ResetTour()
         {
             stage = 0; timer = 0f; wornTime = 0f; heldFor = 0f; dropAt = -1f; pending = null;
-            saidGrabHint = saidPlantHint = saidWorld = saidDrop = saidHarvest = dropped = false;
+            saidGrabHint = saidPlantHint = saidWorld = saidDrop = saidHarvest = saidCatchHint = saidCatchDone = saidBloom = dropped = false;
             if (voice != null) voice.Stop();
         }
 
@@ -49,8 +49,16 @@ namespace CathedralOfFeedback
         public void Effect(Fx kind, float gain)
         {
             if (effects == null) return;
-            AudioClip clip = kind == Fx.Bell ? bell : kind == Fx.Choir ? choir : kind == Fx.Shatter ? shatter : rise;
-            if (clip != null) effects.PlayOneShot(clip, gain);
+            AudioClip clip = kind == Fx.Bell ? bell : kind == Fx.Choir ? choir : kind == Fx.Shatter ? shatter : kind == Fx.Rise ? rise : catchFx;
+            if (clip == null) return;
+            if (kind == Fx.Choir && choirSource != null)
+            {
+                // The choir is a held note, so it has to follow the piece into whatever key a drop has moved it to.
+                var host = CathedralAudio.Instance;
+                choirSource.pitch = host != null && host.Dsp != null ? host.Dsp.KeyRatio : 1f;
+                choirSource.PlayOneShot(clip, gain);
+            }
+            else effects.PlayOneShot(clip, gain);
         }
 
         /// <summary>A drop (the string, or a harvest): bell, choir, and (once) a word from AutoJack.</summary>
@@ -60,6 +68,27 @@ namespace CathedralOfFeedback
             Effect(Fx.Bell, 0.85f);
             Effect(Fx.Choir, 0.55f);
             if (!saidDrop) { saidDrop = true; dropAt = Time.time + 0.9f; }
+        }
+
+        /// <summary>A comet is on its way back from a column. The first time, say it can be caught.</summary>
+        public void OnRebound()
+        {
+            if (saidCatchHint || stage < 1) return;
+            saidCatchHint = true; Say(catchHint);
+        }
+
+        /// <summary>The first catch: say what a run of them does.</summary>
+        public void OnCatch()
+        {
+            if (saidCatchDone) return;
+            saidCatchDone = saidCatchHint = true; Say(catchDone);
+        }
+
+        /// <summary>All eight columns were lit. Say so the first time.</summary>
+        public void OnBloom()
+        {
+            if (saidBloom) return;
+            saidBloom = true; Say(bloom);
         }
 
         /// <summary>The player found the clap on their own; no need to explain it.</summary>

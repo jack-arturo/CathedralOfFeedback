@@ -19,6 +19,13 @@ namespace CathedralOfFeedback
         static readonly int StepColorId = Shader.PropertyToID("_CathedralStepColor");
         static readonly int[] Scale = { 0, 3, 5, 7, 10 };
 
+        public static FloorLights Instance { get; private set; }
+        void Awake() { Instance = this; }
+        void OnDestroy() { if (Instance == this) Instance = null; }
+
+        /// <summary>Send a ring across the floor from under a point (for the big moments).</summary>
+        public void Pulse(Vector3 at, Color c) { stepPos = new Vector3(at.x, 0f, at.z); stepAge = 0f; stepColor = c; }
+
         Vector2Int tile; bool hasTile;
         Vector3 stepPos; float stepAge = 10f, sinceNote = 1f, lit;
         Color stepColor = Color.white;

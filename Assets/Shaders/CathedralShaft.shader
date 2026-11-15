@@ -36,6 +36,7 @@ Shader "Cathedral/Shaft"
                 // A face seen edge-on fades out, so the prism reads as haze rather than as a box.
                 float3 wpos = mul(unity_ObjectToWorld, v.vertex).xyz;
                 float facing = abs(dot(normalize(_WorldSpaceCameraPos - wpos), UnityObjectToWorldNormal(v.normal)));
+                light = light * (1.0 + 2.5 * _CathedralBloom) + half3(1.0, 0.8, 0.5) * _CathedralBloom * 0.5;      // the bloom floods the beams with gold
                 o.color = light * _Gain * (0.75 + 0.5 * _CathedralBeat.x) * saturate(_CathedralMix.x * 1.5 - 0.4) * (0.15 + 0.85 * facing * facing);
                 return o;
             }

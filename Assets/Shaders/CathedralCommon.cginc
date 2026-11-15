@@ -14,6 +14,8 @@ float4 _CathedralCenter;        // xyz field centre (world), w exposure
 float4 _CathedralMix;           // x reveal 0..1, y passthrough 0..1, z time (s), w hue offset
 float4 _CathedralView;          // x windows show the real room behind the glass 0..1
 float4 _CathedralPlayhead;      // x amount 0..1 (notes are planted), y step position 0..16 (one bay per sixteenth)
+float4 _CathedralColsA, _CathedralColsB;   // how lit each of the eight columns is (0..1)
+float _CathedralBloom;          // 0..1 while the vault blooms (all eight columns lit)
 float4 _CathedralHit;           // xyz where a thrown orb last struck, w strength (decays)
 
 float Band(int i) { return _CathedralSpectrum[i >> 2][i & 3]; }

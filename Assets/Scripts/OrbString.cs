@@ -85,8 +85,10 @@ namespace CathedralOfFeedback
             else if (line.enabled) line.enabled = false;
 
             build = Mathf.MoveTowards(build, target, dt * (target > build ? 3f : 1.5f));
-            if (dsp != null) dsp.Build = build;
-            if (field != null) field.Surge = build;
+            // A run of catches winds the room up the same way the string does.
+            float wind = Mathf.Max(build, CometPool.Charge);
+            if (dsp != null) dsp.Build = wind;
+            if (field != null) field.Surge = Mathf.Max(wind, CometPool.Nova * 0.6f);
         }
     }
 }

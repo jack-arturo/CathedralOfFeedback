@@ -106,6 +106,9 @@ Shader "Cathedral/Glass"
                 half3 stone = half3(0.006, 0.007, 0.011) + spill * 0.035 * reveal;
                 col = lerp(stone, col, glass);
 
+                // Bloom: gold light floods down from the crown of the vault when all eight columns are lit.
+                col += half3(1.0, 0.78, 0.45) * (_CathedralBloom * 0.55 * pane * glass * saturate(1.3 - v * 1.3));
+
                 // Passthrough: the wall and unlit glass dissolve into the real room; lit glass stays.
                 half lum = dot(col, half3(0.3, 0.5, 0.2));
                 half aOpen = saturate(lum * 2.6 + (1.0 - glass) * 0.10);

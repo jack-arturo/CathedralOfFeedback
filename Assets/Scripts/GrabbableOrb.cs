@@ -93,7 +93,19 @@ namespace CathedralOfFeedback
             if (Trail != null) Trail.emitting = true;
         }
 
-        public void Release()
+        /// <summary>The orb's light came back and a hand met it: the orb is in that hand now.</summary>
+        public void CatchInto(OrbGrabber hand)
+        {
+            Vector3 p = hand.GrabPoint;
+            transform.position = p; lastPos = p; homeVel = Vector3.zero;
+            Velocity = Vector3.zero; Speed = 0f;
+            if (Trail != null) Trail.Clear();
+            Grab(hand);
+            lastPlant = p;              // a catch is not a place to leave a note
+            ring = 1f; reform = 0.5f;
+        }
+
+        public void Release(bool allowPlant = true)
         {
             IsHeld = false; holder = null; dwell = 0f;
             Vector3 pos = transform.position;
@@ -101,12 +113,12 @@ namespace CathedralOfFeedback
             {
                 // A throw: a comet of this orb's light flies off, and the orb re-forms at its
                 // resting place straight away, so the player's hands are never empty for long.
-                CometPool.Launch(pos, Velocity * 1.35f, NoteColor, Frequency);
+                CometPool.Launch(pos, Velocity * 1.35f, NoteColor, Frequency, this);
                 if (Trail != null) { Trail.emitting = false; Trail.Clear(); }
                 transform.position = home; homeVel = Vector3.zero; lastPos = home;
                 reform = 0f;
             }
-            else if (heldTime > 0.35f && (pos - lastPlant).sqrMagnitude > PlantSpacing * PlantSpacing)
+            else if (allowPlant && heldTime > 0.35f && (pos - lastPlant).sqrMagnitude > PlantSpacing * PlantSpacing)
             {
                 Plant();            // a gentle let-go leaves the note behind too
             }

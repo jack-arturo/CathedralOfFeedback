@@ -27,6 +27,8 @@ namespace CathedralOfFeedback
         float time, drumOpen = 1f, passMix, windowMix;
         static readonly int ViewId = Shader.PropertyToID("_CathedralView");
         float calibTime, calibPeak, rigOffset, playerHeight = 1.6f, unwornTime;
+        Vector2 lastHeadFlat;
+        int lastKey; float keyHue, keyHueTarget;
         bool centred;
         /// <summary>Virtual: just the building. Windows: the real room in stereo passthrough behind the lancet glass. Open: the walls dissolve into the real room.</summary>
         public enum Mode { Virtual, Windows, Open }
@@ -132,6 +134,22 @@ namespace CathedralOfFeedback
                     }
                     centred = true;
                 }
+                else if (head != null && centred)
+                {
+                    // The tracking origin can also move while the headset is worn: the OS re-finds
+                    // its space a few seconds after it is put on, or the boundary is redrawn. Nobody
+                    // walks a metre in one frame and nobody walks out through the glass, so in
+                    // either case put the wearer back under the lantern.
+                    Vector3 hp = head.position;
+                    Vector2 flat = new Vector2(hp.x, hp.z);
+                    bool jumped = (flat - lastHeadFlat).magnitude > 1f;
+                    if (jumped || flat.magnitude > Nave.Radius - 1.5f)
+                    {
+                        head.root.position -= new Vector3(hp.x, 0f, hp.z);
+                        Debug.Log($"[Cathedral] tracking space moved ({(jumped ? "jump" : "outside")}): recentred (was {hp.x:F1},{hp.z:F1} from the middle)");
+                    }
+                }
+                if (head != null) lastHeadFlat = new Vector2(head.position.x, head.position.z);
                 unwornTime = 0f;
             }
 
@@ -163,7 +181,15 @@ namespace CathedralOfFeedback
             float bars = 0f;
             if (an != null) { an.Energy = Energy; bars = (float)(an.BeatPosition / 4.0); }
 
-            PushGlobals(Mathf.Clamp01(time / revealSeconds), passMix, time, Mathf.Repeat(bars * 0.045f, 1f), exposure);
+            // Each drop moves the music to a new key; the colour of the light moves with it. New
+            // light is written at the foot of the walls, so the new palette climbs up through the old.
+            if (audioHost != null && audioHost.Dsp != null && audioHost.Dsp.KeyIndex != lastKey)
+            {
+                lastKey = audioHost.Dsp.KeyIndex; keyHueTarget += 0.29f;
+                Debug.Log($"[Cathedral] key change: now key {lastKey}");
+            }
+            keyHue = Mathf.MoveTowards(keyHue, keyHueTarget, Time.deltaTime * 0.4f);
+            PushGlobals(Mathf.Clamp01(time / revealSeconds), passMix, time, Mathf.Repeat(bars * 0.045f + keyHue, 1f), exposure);
 
             perfFrames++; perfTime += Time.unscaledDeltaTime; perfWorst = Mathf.Max(perfWorst, Time.unscaledDeltaTime);
             if (perfTime >= 5f)

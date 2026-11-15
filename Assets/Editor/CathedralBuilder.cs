@@ -124,13 +124,16 @@ public static class CathedralBuilder
         var fxSrc = narratorGo.AddComponent<AudioSource>();
         fxSrc.playOnAwake = false; fxSrc.spatialBlend = 0f; fxSrc.volume = 0.9f;
         var narrator = narratorGo.AddComponent<Narrator>();
-        Set(narrator, "voice", voiceSrc); Set(narrator, "effects", fxSrc);
+        var choirSrc = narratorGo.AddComponent<AudioSource>();       // its own source, so its pitch can follow the key
+        choirSrc.playOnAwake = false; choirSrc.spatialBlend = 0f; choirSrc.volume = 0.9f;
+        Set(narrator, "voice", voiceSrc); Set(narrator, "effects", fxSrc); Set(narrator, "choirSource", choirSrc);
         foreach (var (prop, file) in new[]
         {
             ("welcome", "vo_welcome"), ("grabHint", "vo_grab_hint"), ("held", "vo_held"), ("plantHint", "vo_plant_hint"),
             ("plantDone", "vo_plant_done"), ("throwHint", "vo_throw"), ("both", "vo_both"), ("drop", "vo_drop"),
             ("prism", "vo_prism"), ("world", "vo_world"), ("harvest", "vo_harvest"),
-            ("bell", "sfx_bell"), ("choir", "sfx_choir"), ("shatter", "sfx_shatter"), ("rise", "sfx_rise"),
+            ("catchHint", "vo_catch_hint"), ("catchDone", "vo_catch_done"), ("bloom", "vo_bloom"),
+            ("bell", "sfx_bell"), ("choir", "sfx_choir"), ("shatter", "sfx_shatter"), ("rise", "sfx_rise"), ("catchFx", "sfx_catch"),
         })
         {
             var clip = AssetDatabase.LoadAssetAtPath<AudioClip>($"Assets/Audio/{file}.wav");

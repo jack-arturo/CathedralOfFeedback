@@ -31,8 +31,23 @@ namespace CathedralOfFeedback
         /// <summary>0..1 build-up: the kick drops out, a snare roll and a riser come in.</summary>
         public volatile float Build;
         volatile bool dropFlag;
-        /// <summary>End a build-up: big kick, crash, and a chord of bells.</summary>
+        /// <summary>End a build-up: big kick, crash, a chord of bells, and the whole piece moves to its next key.</summary>
         public void Drop() { dropFlag = true; }
+
+        // Four keys, a drop apart: A minor, C minor, D minor, G minor, and round again. Everything
+        // pitched goes through keyRatio (the sequenced parts, the orbs, bells and column drums),
+        // so callers keep thinking in A minor and the room stays in tune with itself.
+        volatile int overdriveReq; int overdriveSteps;
+        /// <summary>A climax: for this many bars the arrangement runs flat out and the arpeggio leaps an octave.</summary>
+        public void Overdrive(int bars) { overdriveReq = bars; }
+
+        static readonly int[] KeySemis = { 0, 3, 5, -2 };
+        volatile int keyIndex;
+        float keyRatio = 1f;
+        /// <summary>Which of the four keys the piece is in (changes on every drop).</summary>
+        public int KeyIndex => keyIndex;
+        /// <summary>Frequency ratio of the current key to the home key.</summary>
+        public float KeyRatio => Semi(KeySemis[keyIndex]);
         float riseLow, riseBand, buildSm;
         volatile float chime;
         /// <summary>Ring a bell at the given pitch on the next audio block (UI feedback).</summary>
@@ -64,6 +79,7 @@ namespace CathedralOfFeedback
         void TrigBell(int kind, float freq, float gain, float pan)
         {
             int v = blNext; blNext = (blNext + 1) % BellVoices;
+            freq *= keyRatio;
             blFreq[v] = freq; blEnv[v] = gain; blP1[v] = 0f; blP2[v] = 0f;
             float ang = (Clamp(pan, -1f, 1f) + 1f) * 0.7853982f;
             blGl[v] = (float)Math.Cos(ang); blGr[v] = (float)Math.Sin(ang);
@@ -187,6 +203,9 @@ namespace CathedralOfFeedback
         {
             int st = s & 15, bar = (s >> 4) & 3, phrase = (s >> 6) & 3;     // a phrase is four bars
             float e = Energy;
+            if (overdriveReq > 0) { overdriveSteps = overdriveReq * 16; overdriveReq = 0; }
+            bool over = overdriveSteps > 0;
+            if (over) { overdriveSteps--; e = Math.Max(e, 0.95f); }
 
             // Drums thicken with energy: a lone heartbeat, then four on the floor, hats, claps.
             float bu = Build;
@@ -206,10 +225,10 @@ namespace CathedralOfFeedback
                     if (BassSteps[i] == st)
                     {
                         float semi = BassRoot[bar] + (st == 6 ? 12 : st == 14 ? 7 : 0);
-                        bFreq = 110f * Semi(semi); bEnv = 1f; bFenv = 1f;
+                        bFreq = 110f * keyRatio * Semi(semi); bEnv = 1f; bFenv = 1f;
                     }
 
-            if (st == 0) for (int i = 0; i < 3; i++) oTarget[i] = 220f * Semi(Chords[bar][i]);
+            if (st == 0) for (int i = 0; i < 3; i++) oTarget[i] = 220f * keyRatio * Semi(Chords[bar][i]);
 
             // Arpeggio: eighths when quiet, sixteenths once things are moving.
             if (e > 0.45f || (st & 1) == 0)
@@ -217,7 +236,7 @@ namespace CathedralOfFeedback
                 // The arpeggio alternates between two figures phrase by phrase so the loop keeps moving.
                 int k = ((phrase & 1) == 0 ? ArpPattern : ArpPatternB)[st];
                 int v = aNext; aNext ^= 1;
-                aFreq[v] = 440f * Semi(Chords[bar][k % 3] + 12 * (k / 3));
+                aFreq[v] = 440f * keyRatio * (over ? 2f : 1f) * Semi(Chords[bar][k % 3] + 12 * (k / 3));
                 aEnv[v] = 0.55f + 0.45f * e;
                 aPan[v] = ((st & 2) == 0 ? -0.6f : 0.6f);
             }
@@ -249,13 +268,20 @@ namespace CathedralOfFeedback
             if (dropFlag)
             {
                 dropFlag = false;
+                // Move to the next key, and carry what is already sounding along with it.
+                int nextKey = (keyIndex + 1) % KeySemis.Length;
+                float shift = Semi(KeySemis[nextKey]) / keyRatio;
+                keyRatio *= shift; keyIndex = nextKey;
+                bFreq *= shift;
+                for (int i = 0; i < 3; i++) { oTarget[i] *= shift; oFreq[i] *= shift; }
+                for (int i = 0; i < 2; i++) aFreq[i] *= shift;
                 kEnv = 1.5f; kPhase = 0f; kPitch = 340f; kClick = 1f;
                 hEnv = 1.6f; hDecay = Decay(0.45f);
                 TrigBell(0, 440f, 0.22f, -0.6f); TrigBell(0, 523.25f, 0.2f, 0.6f); TrigBell(0, 659.25f, 0.2f, 0f);
             }
             while (shotRead != shotWrite) { Shot sh = shots[shotRead & 15]; shotRead++; TrigBell(sh.Kind, sh.Freq, sh.Gain, sh.Pan); }
             float ring = chime;
-            if (ring > 0f) { chime = 0f; int cv = aNext; aNext ^= 1; aFreq[cv] = ring; aEnv[cv] = 1.8f; aPan[cv] = 0f; }
+            if (ring > 0f) { chime = 0f; int cv = aNext; aNext ^= 1; aFreq[cv] = ring * keyRatio; aEnv[cv] = 1.8f; aPan[cv] = 0f; }
 
             for (int f = 0; f < frames; f++, pos++)
             {
@@ -334,7 +360,7 @@ namespace CathedralOfFeedback
                     vSus[i] += ((p.Gate ? 1f : 0f) - vSus[i]) * 0.0006f;
                     float amp = vEnv[i] * 0.9f + vSus[i] * 0.2f;
                     if (amp < 1e-4f) continue;
-                    if (p.Gate) vFreq[i] += (p.Freq - vFreq[i]) * 0.003f;
+                    if (p.Gate) vFreq[i] += (p.Freq * keyRatio - vFreq[i]) * 0.003f;
                     float w = vFreq[i] * inv;
                     vPhaseA[i] += w; if (vPhaseA[i] >= 1f) vPhaseA[i] -= 1f;
                     vPhaseB[i] += w * 1.006f; if (vPhaseB[i] >= 1f) vPhaseB[i] -= 1f;

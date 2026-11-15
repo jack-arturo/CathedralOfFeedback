@@ -104,7 +104,7 @@ namespace CathedralOfFeedback
             sparks = go.AddComponent<ParticleSystem>();
             sparks.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             var main = sparks.main;
-            main.loop = true; main.playOnAwake = false; main.maxParticles = 800;
+            main.loop = true; main.playOnAwake = false; main.maxParticles = 1400;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             main.startLifetime = 0.8f; main.startSpeed = 0f; main.startSize = 0.02f;
             main.gravityModifier = 0.3f;
@@ -144,7 +144,25 @@ namespace CathedralOfFeedback
             }
         }
 
-        void PlayLater(float delay, int kind, float freq, float gain, float pan) =>
+        /// <summary>A flat ring of sparks racing outward: a shockwave.</summary>
+        public void Ring(Vector3 pos, Color color, int count, float speed)
+        {
+            if (sparks == null) return;
+            var ep = new ParticleSystem.EmitParams();
+            float phase = Random.value * 6.2832f;
+            for (int i = 0; i < count; i++)
+            {
+                float a = phase + i * (2f * Mathf.PI / count);
+                Vector3 dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                ep.position = pos + dir * 0.05f;
+                ep.velocity = dir * speed;
+                ep.startLifetime = 0.95f; ep.startSize = 0.03f; ep.startColor = color;
+                sparks.Emit(ep, 1);
+            }
+        }
+
+        /// <summary>Play a synth one-shot after a delay (for runs and chords).</summary>
+        public void PlayLater(float delay, int kind, float freq, float gain, float pan) =>
             later.Add(new Later { at = Time.time + delay, kind = kind, freq = freq, gain = gain, pan = pan });
 
         // ------------------------------------------------------------------ notes

@@ -71,6 +71,15 @@ Shader "Cathedral/Stone"
                 float3 dh = i.wpos - _CathedralHit.xyz;
                 col += half3(1.0, 0.85, 0.6) * _CathedralHit.w * exp(-dot(dh, dh) * 0.35) * (0.5 + rim * 2.0);
 
+                // Columns remember being struck: each stays lit in its own colour (trunk, branches
+                // and its share of the lantern) until all eight are, and then the vault blooms.
+                float cidx = floor(frac(atan2(i.wpos.z, i.wpos.x) / (2.0 * UNITY_PI) + 1.0) * 8.0);
+                float clit = dot(saturate(1.0 - abs(cidx - float4(0, 1, 2, 3))), _CathedralColsA)
+                           + dot(saturate(1.0 - abs(cidx - float4(4, 5, 6, 7))), _CathedralColsB);
+                float canopy = 1.0 - smoothstep(5.3, 6.2, length(i.wpos.xz));          // not the wall ribs
+                col += HueToRgb(cidx / 8.0) * clit * canopy * (0.16 + 0.6 * rim + 0.3 * _CathedralBeat.x);
+                col += half3(1.0, 0.82, 0.5) * _CathedralBloom * (0.3 + 1.0 * rim);
+
                 float reveal = smoothstep(0.0, 0.3, _CathedralMix.x * 1.3 - i.uv2.x * 0.6);
                 col = Tonemap(col) * reveal;
                 // Passthrough: stone thins to a rim-lit outline over the real room.
