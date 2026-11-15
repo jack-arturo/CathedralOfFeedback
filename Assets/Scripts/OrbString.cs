@@ -13,6 +13,7 @@ namespace CathedralOfFeedback
     public class OrbString : MonoBehaviour
     {
         const int Points = 24;
+        static readonly int[] Climb = { 0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24 };
         LineRenderer line;
         float build, armedTime = -10f, dropCooldown;
         readonly Vector3[] pts = new Vector3[Points];
@@ -53,6 +54,16 @@ namespace CathedralOfFeedback
                     if (SeedGarden.Instance != null) SeedGarden.Instance.Strike((pa + pb) * 0.5f, 1f);
                     if (Narrator.Instance != null) Narrator.Instance.OnDrop();
                     Debug.Log("[Cathedral] drop");
+                    // The payoff you can see: both orbs leave your hands and spiral round each
+                    // other up through the lantern and out of the building, to a climbing run of bells.
+                    Vector3 mid = (pa + pb) * 0.5f;
+                    a.Ascend(mid, 0f); b.Ascend(mid, Mathf.PI);
+                    if (SeedGarden.Instance != null)
+                    {
+                        SeedGarden.Instance.Ring(mid, Color.white, 64, 5f);
+                        for (int k = 0; k < Climb.Length; k++)
+                            SeedGarden.Instance.PlayLater(0.25f + 0.2f * k, 0, 440f * Mathf.Pow(2f, Climb[k] / 12f), 0.16f, (k & 1) == 0 ? -0.4f : 0.4f);
+                    }
                 }
 
                 // The string itself: a standing wave that tightens as it stretches.

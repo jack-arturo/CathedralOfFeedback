@@ -33,6 +33,7 @@ Shader "Cathedral/Shaft"
                 half3 light = tex2Dlod(_CathedralField, float4(v.uv2, 0, 4.5)).rgb;
                 half peak = max(light.r, max(light.g, light.b));
                 light *= (1.0 - exp(-peak * _CathedralCenter.w)) / max(peak, 1e-4);
+                light = Wake(light) * (0.3 + 0.7 * _CathedralWake);
                 // A face seen edge-on fades out, so the prism reads as haze rather than as a box.
                 float3 wpos = mul(unity_ObjectToWorld, v.vertex).xyz;
                 float facing = abs(dot(normalize(_WorldSpaceCameraPos - wpos), UnityObjectToWorldNormal(v.normal)));

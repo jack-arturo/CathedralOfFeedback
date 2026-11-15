@@ -48,6 +48,8 @@ public static class CathedralPreview
         int shot = 0;
         var bandAvg = new float[SpectrumAnalyzer.BandCount];
         float dt = 1f / Fps;
+        // CATHEDRAL_PREVIEW_WAKE=0 renders the room asleep (the first thing a new wearer sees); default is fully awake.
+        float wake = float.TryParse(Environment.GetEnvironmentVariable("CATHEDRAL_PREVIEW_WAKE"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float w) ? w : 1f;
 
         for (int f = 0; f < frames; f++)
         {
@@ -88,7 +90,7 @@ public static class CathedralPreview
             Shader.SetGlobalVector("_CathedralPlayhead", new Vector4(t > 13.5f ? 1f : 0f, (float)((analyzer.BeatPosition * 4.0) % 16.0), 0f, 0f));
             for (int b = 0; b < bandAvg.Length; b++) bandAvg[b] += analyzer.GetBand(b) / frames;
             float bars = (float)(analyzer.BeatPosition / 4.0);
-            CathedralDirector.PushGlobals(Mathf.Clamp01(t / 7f), 0f, t, Mathf.Repeat(bars * 0.045f, 1f), 1.7f);
+            CathedralDirector.PushGlobals(Mathf.Clamp01(t / 7f), 0f, t, Mathf.Repeat(bars * 0.045f, 1f), 1.7f, wake);
             field.Tick(dt);
 
             if (shot < shots.Length && t >= shots[shot])

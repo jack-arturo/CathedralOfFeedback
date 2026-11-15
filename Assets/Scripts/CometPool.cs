@@ -65,13 +65,13 @@ namespace CathedralOfFeedback
         {
             Debug.Log("[Cathedral] supernova");
             nova = 1f;
-            Color orbColor = Color.white;
+            Color orbColor = Color.white; GrabbableOrb heldOrb = null;
             float best = 1f;
             var orbs = GrabbableOrb.All;
             for (int i = 0; i < orbs.Count; i++)
             {
                 float d = (orbs[i].transform.position - pos).magnitude;
-                if (orbs[i].IsHeld && d < best) { best = d; orbColor = orbs[i].NoteColor; }
+                if (orbs[i].IsHeld && d < best) { best = d; orbColor = orbs[i].NoteColor; heldOrb = orbs[i]; }
                 orbs[i].Ring();
             }
             var garden = SeedGarden.Instance;
@@ -115,6 +115,12 @@ namespace CathedralOfFeedback
                 garden.Burst(new Vector3(0f, Nave.LanternHeight, 0f), Color.white, 120, 6f);
             }
             if (FloorLights.Instance != null) FloorLights.Instance.Pulse(pos, orbColor);
+            // And every bell tied to that orb goes off in turn, out along its thread.
+            if (garden != null && heldOrb != null)
+            {
+                int n = garden.Cascade(heldOrb, pos);
+                if (n > 0) Debug.Log($"[Cathedral] supernova set off {n} bells");
+            }
         }
 
         void Awake()
@@ -186,6 +192,7 @@ namespace CathedralOfFeedback
         IEnumerator Bloom()
         {
             bloom = 1f;
+            CathedralDirector.Stir(1f);
             Debug.Log("[Cathedral] bloom: all eight columns lit");
             if (FeedbackField.Instance != null) FeedbackField.Instance.Flash(1f);
             if (Narrator.Instance != null) { Narrator.Instance.Effect(Narrator.Fx.Choir, 0.75f); Narrator.Instance.OnBloom(); }
@@ -238,6 +245,7 @@ namespace CathedralOfFeedback
             var orbs = GrabbableOrb.All;
             for (int i = 0; i < orbs.Count; i++) orbs[i].Ring();
             if (Narrator.Instance != null) { Narrator.Instance.Effect(Narrator.Fx.Catch, 0.8f); Narrator.Instance.OnCatch(); }
+            CathedralDirector.Stir(0.08f);
             Debug.Log($"[Cathedral] catch, streak {streak}");
 
             if (streak < 3) return;
@@ -290,6 +298,7 @@ namespace CathedralOfFeedback
                 SeedGarden.Instance.Strike(point, 0.5f + 0.5f * hit);
                 SeedGarden.Instance.Burst(point, new Color(1f, 0.8f, 0.5f), 10 + rally * 6, 2.5f);
             }
+            CathedralDirector.Stir(0.05f);
             Debug.Log($"[Cathedral] column {column.index} struck, rally {rally}");
             if (bloom <= 0f)
             {
@@ -330,7 +339,7 @@ namespace CathedralOfFeedback
     {
         static readonly int ColorId = Shader.PropertyToID("_Color");
         Rigidbody body; Renderer rend; TrailRenderer trail; MaterialPropertyBlock mpb;
-        Color color; float freq, life; int bounces; GrabbableOrb source;
+        Color color; float freq, life; int bounces, strums; GrabbableOrb source;
         // The way back after a column strike.
         bool ripe; float ripeTime, ripeEnd, side, lift, returnSpeed; Vector3 approach;
 
@@ -347,7 +356,7 @@ namespace CathedralOfFeedback
             gameObject.SetActive(true);
             trail.Clear();
             body.linearVelocity = velocity; body.angularVelocity = Vector3.zero;
-            color = c; freq = f; life = 0f; bounces = 0; ripe = false; trail.widthMultiplier = 0.045f;
+            color = c; freq = f; life = 0f; bounces = 0; strums = 0; ripe = false; trail.widthMultiplier = 0.045f;
             trail.startColor = c; trail.endColor = new Color(c.r, c.g, c.b, 0f);
         }
 
@@ -358,7 +367,13 @@ namespace CathedralOfFeedback
             Vector3 p = transform.position;
 
             // Passing through hanging notes strums them.
-            if (SeedGarden.Instance != null) SeedGarden.Instance.Strum(p, 0.14f);
+            if (SeedGarden.Instance != null)
+            {
+                int was = strums;
+                strums += SeedGarden.Instance.Strum(p, 0.14f);
+                // Three bells on one throw: lined up just right.
+                if (was < 3 && strums >= 3) { SeedGarden.Instance.Flourish(p, color); Debug.Log("[Cathedral] strum of three"); }
+            }
 
             // Once it has bounced it can be caught: by a hand, or by an orb in a hand.
             Transform head = FeedbackField.Instance != null ? FeedbackField.Instance.viewer : null;

@@ -111,7 +111,7 @@ namespace CathedralOfFeedback
             // Pull the music back under the voice: quickly down, slowly back.
             duck = Mathf.MoveTowards(duck, speaking ? 1f : 0f, dt * (speaking ? 10f : 1.2f));
             var audioHost = CathedralAudio.Instance;
-            if (audioHost != null && audioHost.Dsp != null) audioHost.Dsp.Master = Mathf.Lerp(0.85f, 0.85f * duckTo, duck);
+            if (audioHost != null && audioHost.Dsp != null) audioHost.Dsp.Master = Mathf.Lerp(0.85f, 0.85f * duckTo, duck) * CathedralDirector.MusicLevel;
 
             bool worn = Application.isEditor || OVRPlugin.userPresent;
             if (!worn)

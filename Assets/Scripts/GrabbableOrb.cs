@@ -50,7 +50,12 @@ namespace CathedralOfFeedback
 
         OrbGrabber holder;
         Vector3 home, lastPos, homeVel, baseScale, haloScale = Vector3.one, lean, lastPlant = Vector3.one * 999f, dwellAnchor;
-        float awayTime, invite, heldTime, dwell, ring, reform = 1f;
+        float awayTime, invite, heldTime, dwell, ring, reform = 1f, ascend = -1f, ascendPhase;
+        Vector3 ascendFrom;
+        const float AscendSeconds = 2.6f;
+
+        /// <summary>True while the orb is flying up out of the building after a string drop.</summary>
+        public bool Ascending => ascend >= 0f;
         MaterialPropertyBlock mpb;
 
         public static int NoteForHeight(float y) =>
@@ -91,6 +96,43 @@ namespace CathedralOfFeedback
             holder = hand; IsHeld = true; heldTime = 0f; dwell = 0f; dwellAnchor = transform.position;
             lastPlant = Vector3.one * 999f;
             if (Trail != null) Trail.emitting = true;
+        }
+
+        /// <summary>
+        /// The string's payoff. The orb leaves the hand and spirals up around its twin (give the
+        /// two orbs phases half a turn apart): wide round the player, drawing in to pass through
+        /// the lantern, then a tight pair out through the crown of the vault. Then it re-forms at rest.
+        /// </summary>
+        public void Ascend(Vector3 from, float phase)
+        {
+            if (holder != null) holder.LetGo(this);
+            IsHeld = false; holder = null; dwell = 0f;
+            ascend = 0f; ascendPhase = phase; ascendFrom = from;
+            if (Trail != null) { Trail.Clear(); Trail.emitting = true; }
+        }
+
+        void AscendStep(float dt)
+        {
+            ascend += dt;
+            float u = Mathf.Clamp01(ascend / AscendSeconds);
+            float y = Mathf.Lerp(ascendFrom.y, Nave.ApexHeight + 1.5f, Mathf.Pow(u, 2.2f));
+            float toAxis = Mathf.SmoothStep(0f, 1f, u / 0.6f);
+            float r = 0.12f + 0.55f * Mathf.Sin(Mathf.PI * Mathf.Min(1f, u * 1.4f));
+            float ang = ascendPhase + 2f * Mathf.PI * (3f * u + 3f * u * u);
+            Vector3 p = new Vector3(Mathf.Lerp(ascendFrom.x, 0f, toAxis) + Mathf.Cos(ang) * r, y,
+                                    Mathf.Lerp(ascendFrom.z, 0f, toAxis) + Mathf.Sin(ang) * r);
+            transform.position = p;
+            if (SeedGarden.Instance != null) SeedGarden.Instance.Burst(p, NoteColor, 2, 0.5f);
+            if (u < 1f) return;
+
+            // Out through the crown: a burst up there, and the orb is back at rest by the player.
+            if (SeedGarden.Instance != null) SeedGarden.Instance.Burst(p, Color.white, 50, 5f);
+            if (FeedbackField.Instance != null) FeedbackField.Instance.Flash(0.4f);
+            var host = CathedralAudio.Instance;
+            if (host != null && host.Dsp != null) host.Dsp.OneShot(0, orbIndex == 0 ? 1760f : 1318.5f, 0.2f, orbIndex == 0 ? 0.4f : -0.4f);
+            ascend = -1f; reform = 0f;
+            if (Trail != null) { Trail.emitting = false; Trail.Clear(); }
+            transform.position = home; lastPos = home; homeVel = Vector3.zero;
         }
 
         /// <summary>The orb's light came back and a hand met it: the orb is in that hand now.</summary>
@@ -157,7 +199,8 @@ namespace CathedralOfFeedback
         {
             float dt = Mathf.Max(Time.deltaTime, 1e-4f);
             FollowPlayer(dt);
-            if (IsHeld && holder != null)
+            if (ascend >= 0f) AscendStep(dt);
+            else if (IsHeld && holder != null)
             {
                 transform.position = holder.GrabPoint;
                 heldTime += dt;
@@ -221,8 +264,9 @@ namespace CathedralOfFeedback
             float charge = Mathf.Clamp01(dwell / DwellSeconds);
             if (IsHeld) invite = 0f;
 
-            Color c = IsHeld ? NoteColor : Color.HSVToRGB(baseHue, 0.75f, 1f);
-            float glow = (IsHeld ? 1.3f + pulse * 0.9f + charge * 1.2f : 0.55f + pulse * 0.25f + invite * 0.9f) + ring * 1.4f;
+            bool live = IsHeld || ascend >= 0f;
+            Color c = live ? NoteColor : Color.HSVToRGB(baseHue, 0.75f, 1f);
+            float glow = (live ? 1.3f + pulse * 0.9f + charge * 1.2f : 0.55f + pulse * 0.25f + invite * 0.9f) + ring * 1.4f + (ascend >= 0f ? 1.2f : 0f);
             float grow = Mathf.SmoothStep(0.15f, 1f, reform);
             transform.localScale = baseScale * (grow * (1f + (IsHeld ? 0.22f : 0.08f) * pulse + invite * 0.3f + ring * 0.25f));
             if (core != null) { c.a = glow; mpb.SetColor(ColorId, c); core.SetPropertyBlock(mpb); }
@@ -235,7 +279,7 @@ namespace CathedralOfFeedback
             if (Trail != null) { c.a = 1f; Trail.startColor = c; Trail.endColor = new Color(c.r, c.g, c.b, 0f); }
 
             var field = FeedbackField.Instance;
-            if (field != null && IsHeld)
+            if (field != null && live)
                 field.AddSplat(pos, NoteColor, 1.3f + Mathf.Min(Speed, 2f) * 0.9f, 0.055f);
         }
     }

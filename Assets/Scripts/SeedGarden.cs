@@ -30,8 +30,8 @@ namespace CathedralOfFeedback
 
         struct Seed
         {
-            public bool alive, armed, rising, rung;
-            public Vector3 pos, from; public int note, step; public float freq, hue, flash, age, rise;
+            public bool alive, armed, rising, rung, fused;
+            public Vector3 pos, from; public int note, step; public float freq, hue, flash, age, rise, fuse;
             public Transform t; public Renderer r; public LineRenderer thread; public GrabbableOrb parent;
         }
         struct Later { public float at; public int kind; public float freq, gain, pan; }
@@ -177,7 +177,7 @@ namespace CathedralOfFeedback
             int step = Mathf.FloorToInt(Mathf.Repeat(Mathf.Atan2(d.z, d.x) / (2f * Mathf.PI) * Nave.Wedges, Nave.Wedges)) % Nave.Wedges;
 
             int slot = next; next = (next + 1) % capacity;
-            seeds[slot].alive = true; seeds[slot].armed = false; seeds[slot].rising = false;
+            seeds[slot].alive = true; seeds[slot].armed = false; seeds[slot].rising = false; seeds[slot].fused = false;
             seeds[slot].pos = pos; seeds[slot].note = note; seeds[slot].step = step;
             seeds[slot].freq = freq; seeds[slot].hue = hue; seeds[slot].flash = 1f; seeds[slot].age = 0f;
             seeds[slot].parent = parent;
@@ -186,12 +186,13 @@ namespace CathedralOfFeedback
             var dsp = Dsp;
             if (dsp != null) dsp.OneShot(0, freq, bellGain * 1.2f, GrabbableOrb.PanFor(pos));
             Burst(pos, GrabbableOrb.ColorForNote(note, hue), 10, 0.9f);
+            CathedralDirector.Stir(0.04f);
             Debug.Log($"[Cathedral] note planted, {Count} hanging");
         }
 
         void Kill(int i)
         {
-            seeds[i].alive = false; seeds[i].rising = false; seeds[i].parent = null;
+            seeds[i].alive = false; seeds[i].rising = false; seeds[i].fused = false; seeds[i].parent = null;
             seeds[i].t.gameObject.SetActive(false); seeds[i].thread.enabled = false;
         }
 
@@ -210,9 +211,48 @@ namespace CathedralOfFeedback
             if (field != null) field.AddSplat(pos, Color.white, 1.5f + 2f * strength, 0.09f);
         }
 
-        /// <summary>A comet passing through hanging notes rings them as it goes.</summary>
-        public void Strum(Vector3 p, float radius)
+        /// <summary>
+        /// Set off every note tied to an orb, nearest first, like a fuse running out along the
+        /// threads: each burns bright, then bursts and rings. Returns how many were lit.
+        /// </summary>
+        public int Cascade(GrabbableOrb orb, Vector3 from)
         {
+            var order = new List<int>();
+            for (int i = 0; i < capacity; i++)
+                if (seeds[i].alive && !seeds[i].rising && !seeds[i].fused && (orb == null || seeds[i].parent == orb)) order.Add(i);
+            order.Sort((x, y) => (seeds[x].pos - from).sqrMagnitude.CompareTo((seeds[y].pos - from).sqrMagnitude));
+            for (int k = 0; k < order.Count; k++) { seeds[order[k]].fused = true; seeds[order[k]].fuse = 0.15f + 0.12f * k; }
+            if (order.Count >= 4) PlayLater(0.15f + 0.12f * order.Count, 0, 1760f, bellGain * 1.4f, 0f);
+            return order.Count;
+        }
+
+        void Detonate(int i)
+        {
+            Vector3 pos = seeds[i].pos;
+            Color c = GrabbableOrb.ColorForNote(seeds[i].note, seeds[i].hue);
+            Burst(pos, c, 34, 3f);
+            Burst(pos, Color.white, 10, 4.5f);
+            Strike(pos, 0.9f);
+            var dsp = Dsp;
+            if (dsp != null) dsp.OneShot(0, seeds[i].freq * 2f, bellGain * 1.5f, GrabbableOrb.PanFor(pos));
+            if (Narrator.Instance != null) Narrator.Instance.Effect(Narrator.Fx.Shatter, 0.4f);
+            Kill(i);
+        }
+
+        /// <summary>Something lined up just right: a ring of sparks, a quick run of bells, a flash in the vault.</summary>
+        public void Flourish(Vector3 pos, Color color)
+        {
+            Ring(pos, color, 48, 4f);
+            Burst(pos, Color.white, 30, 4f);
+            for (int k = 0; k < 5; k++) PlayLater(0.06f * (k + 1), 0, 880f * Mathf.Pow(2f, Climb[k + 3] / 12f), bellGain * 1.3f, (k - 2) * 0.4f);
+            if (FeedbackField.Instance != null) FeedbackField.Instance.Flash(0.4f);
+            CathedralDirector.Stir(0.15f);
+        }
+
+        /// <summary>A comet passing through hanging notes rings them as it goes. Returns how many it rang.</summary>
+        public int Strum(Vector3 p, float radius)
+        {
+            int rang = 0;
             for (int i = 0; i < capacity; i++)
             {
                 if (!seeds[i].alive || seeds[i].rising || seeds[i].flash > 0.4f) continue;
@@ -222,7 +262,9 @@ namespace CathedralOfFeedback
                 if (dsp != null) dsp.OneShot(0, seeds[i].freq, bellGain * 1.3f, GrabbableOrb.PanFor(seeds[i].pos));
                 Burst(seeds[i].pos, GrabbableOrb.ColorForNote(seeds[i].note, seeds[i].hue), 8, 1.4f);
                 if (seeds[i].parent != null) seeds[i].parent.Ring();
+                rang++;
             }
+            return rang;
         }
 
         void Pop(int i)
@@ -253,6 +295,7 @@ namespace CathedralOfFeedback
                 if (FeedbackField.Instance != null) FeedbackField.Instance.Flash(0.45f);
                 Burst(pos, Color.white, 40, 5f);
             }
+            CathedralDirector.Stir(0.03f);
             Debug.Log($"[Cathedral] pop, combo {combo}");
             Kill(i);
         }
@@ -404,6 +447,12 @@ namespace CathedralOfFeedback
                 }
 
                 seeds[i].age += dt;
+                if (seeds[i].fused)
+                {
+                    // The fuse is running: the note and its thread burn bright, then it goes off.
+                    seeds[i].fuse -= dt; seeds[i].flash = 1f;
+                    if (seeds[i].fuse <= 0f) { Detonate(i); changed = true; continue; }
+                }
                 if (tick && seeds[i].step == step)
                 {
                     seeds[i].flash = 1f;

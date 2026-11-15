@@ -36,6 +36,9 @@ namespace CathedralOfFeedback
 
         void OnEnable() { All.Add(this); }
 
+        /// <summary>The orb is leaving of its own accord (the string's finale): forget it without releasing it.</summary>
+        public void LetGo(GrabbableOrb orb) { if (held == orb) { held = null; catchGrace = 0f; } }
+
         /// <summary>
         /// A returning comet met this (empty) hand: the orb is in it now. The hand was probably
         /// open, so the orb stays for a moment without a grip; closing the hand keeps it, and a
@@ -132,7 +135,7 @@ namespace CathedralOfFeedback
                 var all = GrabbableOrb.All;
                 for (int i = 0; i < all.Count; i++)
                 {
-                    if (all[i].IsHeld) continue;
+                    if (all[i].IsHeld || all[i].Ascending) continue;
                     Vector3 op = all[i].transform.position;
                     float d = Mathf.Min((op - probe).sqrMagnitude, (op - alt).sqrMagnitude);
                     if (d < best) { best = d; pick = all[i]; }

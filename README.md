@@ -18,14 +18,14 @@ AutoJack's spoken tour and five one-shots (bell, choir, breaking glass, the harv
 | Plant a note | hold the orb still for half a second (its halo draws in, then it buds a note), or let go gently | same |
 | Throw | let go mid-swing: a comet of the orb's light flies off and the orb is back by your hand at once | same |
 | Column rally | hit columns three times in quick succession and the whole ring answers | same |
-| Supernova (the hidden one) | meet a returning comet with an orb that is already in your hand: the two collide, the room drops, and the next eight bars run flat out an octave up | same |
+| Supernova (the hidden one) | meet a returning comet with an orb that is already in your hand: the two collide, the room drops, the next eight bars run flat out an octave up, and every bell tied to that orb goes off in turn along its thread | same |
 | Wake the cathedral | a struck column stays lit; light all eight and the vault blooms with gold light and the choir | same |
 | Catch | a comet that strikes a column flies back and slows near you: meet it with a hand and the orb is in that hand, ready to throw again (close your hand to keep it). Three catches in a row wind the room up and drop it | same |
-| Strum | throw a comet through hanging notes | same |
+| Strum | throw a comet through hanging notes; three on one throw sets off a flourish | same |
 | Pop a planted note | poke it; pop several quickly and the pops climb the scale | touch it |
 | Harvest | clap with three or more notes hanging: they fly up into the lantern and the room drops | - |
 | Walk | each floor tile you step onto lights up, rings a soft note and sends a ripple out | same |
-| Build-up and drop | hold both orbs, stretch the string between them, bring them back together | same |
+| Build-up and drop | hold both orbs, stretch the string between them, bring them back together: the room drops and both orbs leave your hands, spiralling round each other up through the lantern and out of the building | same |
 | Change room mode | poke the small prism at your left hip (or pinch thumb + middle finger) | touch the prism, or A / X |
 
 **Three ways your playing comes back.** Echoes: ghost orbs replay your movement and notes one,
@@ -38,6 +38,12 @@ that the glass is made of.
 
 Every drop (the string, a harvest, three catches) moves the whole piece to the next of four keys
 (A, C, D and G minor) and the colour of the light moves with it, climbing the walls from the floor.
+
+**The room sleeps until it is played.** A new wearer finds it dim and grey, the music a distant
+heartbeat, and the two orbs the only colour. Taking one answers at once; holding, planting,
+striking and catching bring the colour up, and any drop brings it all the way. With empty hands
+it sinks back over half a minute, but never below what the hanging bells hold up: leave notes
+around the room and it stays awake.
 
 Holding an orb builds the arrangement (drums, bass and hats come in); letting go lets it settle.
 Raising an orb opens the filter on the beat. The eight columns are drums, tuned to the same scale.
@@ -111,3 +117,4 @@ orbs, room mode and head pose. Measured on Quest 3: 90 Hz locked at 1.25x render
 runs the real synth, analyser and feedback loop offline for a scripted 20 s performance (about
 20 s wall clock) and writes stills, the raw field and `mix.wav` to `Previews/`, with loudness and
 sub-100 Hz statistics in the log. It needs a graphics device, so do not add `-nographics`.
+Set `CATHEDRAL_PREVIEW_WAKE=0` to render the room asleep, as a new wearer first sees it.

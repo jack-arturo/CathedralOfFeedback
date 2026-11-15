@@ -46,13 +46,27 @@ namespace CathedralOfFeedback
             if (audioHost != null && audioHost.Dsp != null) audioHost.Dsp.Chime(880f * Mathf.Pow(2f, new[] { 0f, 3f, 7f }[mode] / 12f));
         }
 
-        public static void PushGlobals(float reveal, float passthrough, float time, float hue, float exposure)
+        public static void PushGlobals(float reveal, float passthrough, float time, float hue, float exposure, float wake = 1f)
         {
+            Shader.SetGlobalFloat(WakeId, wake);
             Shader.SetGlobalVector(MixId, new Vector4(reveal, passthrough, time, hue));
             Shader.SetGlobalVector(CenterId, new Vector4(0f, Nave.EyeHeight, 0f, exposure));
         }
 
-        void Awake() { Energy = idleEnergy; PushGlobals(0f, 0f, 0f, 0f, exposure); }
+        void Awake() { self = this; Energy = idleEnergy; PushGlobals(0f, 0f, 0f, 0f, exposure, 0f); }
+
+        // ---- The room sleeps until it is played. `wake` is 0 when someone puts the headset on:
+        // the glass is dim and grey and the music is a distant heartbeat. Taking a light answers
+        // at once; holding, planting, striking and catching bring the colour up; any drop brings
+        // it all the way. With empty hands it sinks back over half a minute, but never below
+        // what the hanging bells hold up: leave notes around the room and it stays awake.
+        static CathedralDirector self;
+        static readonly int WakeId = Shader.PropertyToID("_CathedralWake");
+        float wake, wakeShown, idleTime;
+        /// <summary>How loud the music is allowed to be: it sits back while the room sleeps.</summary>
+        public static float MusicLevel => self != null ? Mathf.Lerp(0.55f, 1f, self.wakeShown) : 1f;
+        /// <summary>Something the player did: bring the room up a little (or, with 1, all the way).</summary>
+        public static void Stir(float amount) { if (self != null) self.wake = Mathf.Min(1f, self.wake + amount); }
 
         void Start()
         {
@@ -90,7 +104,21 @@ namespace CathedralOfFeedback
             }
             if (SeedGarden.Instance != null) activity += Mathf.Min(SeedGarden.Instance.Count, 12) * 0.03f;
             if (OrbString.Instance != null) activity += OrbString.Instance.Build * 0.25f;
-            float target = Mathf.Clamp01(idleEnergy + activity);
+            float bells = SeedGarden.Instance != null ? Mathf.Min(0.6f, SeedGarden.Instance.Count * 0.075f) : 0f;
+            if (held > 0)
+            {
+                idleTime = 0f;
+                wake = Mathf.Min(1f, Mathf.Max(wake, 0.3f) + dt * 0.05f * held);
+            }
+            else
+            {
+                idleTime += dt;
+                if (idleTime > 6f) wake = Mathf.Max(bells, wake - dt / 28f);
+            }
+            if (wake < bells) wake = Mathf.MoveTowards(wake, bells, dt * 0.3f);
+            wakeShown = Mathf.Lerp(wakeShown, wake, 1f - Mathf.Exp(-dt * 2.5f));
+
+            float target = Mathf.Clamp01(Mathf.Lerp(0.12f, idleEnergy, wakeShown) + activity);
             Energy = Mathf.Lerp(Energy, target, 1f - Mathf.Exp(-dt / (target > Energy ? 2.5f : 11f)));
 
             // The original trick, kept: raise the orb and the beat opens up, lower it and it goes underwater.
@@ -133,6 +161,7 @@ namespace CathedralOfFeedback
                         Debug.Log($"[Cathedral] recentred on the wearer (was {hp.x:F1},{hp.z:F1} from the middle)");
                     }
                     centred = true;
+                    wake = 0f;          // a new wearer finds the room asleep
                 }
                 else if (head != null && centred)
                 {
@@ -176,7 +205,11 @@ namespace CathedralOfFeedback
             }
 
             var audioHost = CathedralAudio.Instance;
-            if (audioHost != null && audioHost.Dsp != null) { audioHost.Dsp.Energy = Energy; audioHost.Dsp.DrumOpen = drumOpen; }
+            if (audioHost != null && audioHost.Dsp != null)
+            {
+                audioHost.Dsp.Energy = Energy; audioHost.Dsp.DrumOpen = drumOpen;
+                audioHost.Dsp.ReverbWet = Mathf.Lerp(0.5f, 0.32f, wakeShown);       // asleep, the music is further away
+            }
             var an = SpectrumAnalyzer.Instance;
             float bars = 0f;
             if (an != null) { an.Energy = Energy; bars = (float)(an.BeatPosition / 4.0); }
@@ -186,10 +219,11 @@ namespace CathedralOfFeedback
             if (audioHost != null && audioHost.Dsp != null && audioHost.Dsp.KeyIndex != lastKey)
             {
                 lastKey = audioHost.Dsp.KeyIndex; keyHueTarget += 0.29f;
+                wake = 1f;          // any drop wakes the room completely
                 Debug.Log($"[Cathedral] key change: now key {lastKey}");
             }
             keyHue = Mathf.MoveTowards(keyHue, keyHueTarget, Time.deltaTime * 0.4f);
-            PushGlobals(Mathf.Clamp01(time / revealSeconds), passMix, time, Mathf.Repeat(bars * 0.045f + keyHue, 1f), exposure);
+            PushGlobals(Mathf.Clamp01(time / revealSeconds), passMix, time, Mathf.Repeat(bars * 0.045f + keyHue, 1f), exposure, wakeShown);
 
             perfFrames++; perfTime += Time.unscaledDeltaTime; perfWorst = Mathf.Max(perfWorst, Time.unscaledDeltaTime);
             if (perfTime >= 5f)
@@ -208,7 +242,7 @@ namespace CathedralOfFeedback
 #endif
                 string pose = head != null ? $"head {head.position.x:F1},{head.position.y:F2},{head.position.z:F1} fwd {head.forward.x:F1},{head.forward.y:F1},{head.forward.z:F1}" : "no head";
                 Debug.Log($"[Cathedral] fps {perfFrames / perfTime:F1} worst {perfWorst * 1000f:F1}ms energy {Energy:F2} held {held} hands {handsTracked} " +
-                          gpu + $"notes {(SeedGarden.Instance != null ? SeedGarden.Instance.Count : 0)} audio {(an != null ? an.Level : -1f):F3} mode {(Mode)mode} pass {passMix:F1} beat {(an != null ? an.BeatPosition : 0):F0} {pose} rig {rigOffset:F2}");
+                          gpu + $"notes {(SeedGarden.Instance != null ? SeedGarden.Instance.Count : 0)} audio {(an != null ? an.Level : -1f):F3} mode {(Mode)mode} pass {passMix:F1} beat {(an != null ? an.BeatPosition : 0):F0} {pose} rig {rigOffset:F2} wake {wakeShown:F2}");
                 perfFrames = 0; perfTime = 0f; perfWorst = 0f;
             }
         }

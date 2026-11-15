@@ -50,7 +50,17 @@ half3 Jewel(half t)
     return lerp(a, b, smoothstep(0.0, 1.0, frac(t)));
 }
 
-half3 Tonemap(half3 c) { return 1.0 - exp(-c * _CathedralCenter.w); }
+float _CathedralWake;           // 0 the room is asleep (dim, drained of colour) .. 1 awake
+
+// The room sleeps until it is played. Asleep, the building is a dim, cool grey; the orbs and
+// sparks do not go through this, so they are the only colour in it.
+half3 Wake(half3 c)
+{
+    half l = dot(c, half3(0.3, 0.5, 0.2));
+    return lerp(l * half3(0.40, 0.47, 0.62), c, _CathedralWake);
+}
+
+half3 Tonemap(half3 c) { return Wake(1.0 - exp(-c * _CathedralCenter.w)); }
 
 float Hash21(float2 p)
 {

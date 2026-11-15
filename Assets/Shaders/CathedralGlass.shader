@@ -91,6 +91,7 @@ Shader "Cathedral/Glass"
                 // Hue-preserving tonemap: bright glass stays coloured instead of bleaching.
                 half peak = max(col.r, max(col.g, col.b));
                 col *= (1.0 - exp(-peak * _CathedralCenter.w)) / max(peak, 1e-4);
+                col = Wake(col);
 
                 // The building lights up from the floor on entry.
                 float reveal = smoothstep(0.0, 0.25, _CathedralMix.x * 1.25 - (1.0 - v));
