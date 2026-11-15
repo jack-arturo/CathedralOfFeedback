@@ -34,3 +34,6 @@ cottage-config.json*
 # Meta generates these empty runtime binding files during Android builds.
 Assets/StreamingAssets/RuntimeActionBindings.json*
 *.log
+
+# Offline preview renders and audio from CathedralPreview
+Previews/
