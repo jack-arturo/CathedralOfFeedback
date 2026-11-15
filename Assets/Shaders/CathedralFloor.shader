@@ -4,7 +4,7 @@ Shader "Cathedral/Floor"
 {
     Properties
     {
-        _TileSize ("Tile size (m)", Float) = 1.1
+        _TileSize ("Tile size (m)", Float) = 0.8
         _Reflect ("Reflectivity", Range(0, 1)) = 0.55
     }
     SubShader
@@ -21,6 +21,9 @@ Shader "Cathedral/Floor"
             #include "CathedralCommon.cginc"
 
             half _TileSize, _Reflect;
+            float4 _CathedralStep;        // xz of the tile last stepped onto, seconds since, 1 while worn
+            float4 _CathedralFeet;        // xz under the player
+            half4 _CathedralStepColor;
 
             struct appdata { float4 vertex : POSITION; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct v2f { float4 pos : SV_POSITION; float3 wpos : TEXCOORD0; float3 view : TEXCOORD1; UNITY_VERTEX_OUTPUT_STEREO };
@@ -57,6 +60,22 @@ Shader "Cathedral/Floor"
                 float k = _Reflect * lerp(0.45, 1.0, checker) * (0.30 + 0.70 * fres);
                 half3 col = half3(0.006, 0.007, 0.011) * (1.0 + checker) + refl * k;
                 col *= 1.0 - 0.85 * grout;
+
+                // Footsteps: the tile under the player is lit, and each step onto a new tile
+                // sends a ring across the floor that runs along the grout lines.
+                float2 scell = floor(float2(_CathedralStep.x + _CathedralStep.y, _CathedralStep.x - _CathedralStep.y) / _TileSize);
+                float2 dc = abs(floor(tg) - scell);
+                float onTile = (1.0 - saturate(dc.x)) * (1.0 - saturate(dc.y));
+                float age = _CathedralStep.z;
+                float sd = length(i.wpos.xz - _CathedralStep.xy);
+                float rw = (sd - age * 2.6) / 0.2;
+                float ring = exp(-rw * rw) * exp(-age * 1.3);
+                float2 fd = i.wpos.xz - _CathedralFeet.xy;
+                float pool = exp(-dot(fd, fd) / 1.4);
+                col += _CathedralStepColor.rgb * _CathedralStep.w *
+                       (onTile * (1.0 - grout) * (0.10 + 0.5 * exp(-age * 2.2))
+                        + ring * (0.12 + 0.9 * grout)
+                        + pool * grout * 0.12);
 
                 float reveal = smoothstep(0.0, 0.3, _CathedralMix.x * 1.6);
                 col = Tonemap(col) * reveal;

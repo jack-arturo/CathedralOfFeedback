@@ -76,19 +76,6 @@ Shader "Cathedral/Glass"
                 half grey = dot(col, half3(0.3, 0.5, 0.2));
                 col = max(lerp(grey.xxx, col, _Saturation), 0.0);
 
-                // The room in the glass: each lancet is a leaded mosaic of the passthrough camera,
-                // mirrored bay to bay, brightened wherever the music's light is passing through it.
-                float mwin = abs(frac(cuv.x * 0.5) * 2.0 - 1.0);
-                float2 ruv = float2((mwin - (0.5 - _Window.w * 0.5)) / _Window.w, (_Window.z - cuv.y) / (_Window.z - _Window.x));
-                half rgain = RoomGain();
-                half3 room = RoomGlass(float2(0.5 + (ruv.x - 0.5) * _CathedralRoomParams.w, lerp(0.04, 0.96, saturate(ruv.y))), 1.0, rgain);
-                // A little of the unquantised picture inside each pane keeps faces readable.
-                float mpix = abs(frac(u * 0.5) * 2.0 - 1.0);
-                float2 puv = float2((mpix - (0.5 - _Window.w * 0.5)) / _Window.w, (_Window.z - v) / (_Window.z - _Window.x));
-                room = lerp(room, RoomGlass(float2(0.5 + (puv.x - 0.5) * _CathedralRoomParams.w, lerp(0.04, 0.96, saturate(puv.y))), 0.0, rgain), 0.4);
-                half fieldPeak = max(col.r, max(col.g, col.b));
-                col = lerp(col, room * (0.8 + 0.4 * h) * (0.5 + 1.3 * fieldPeak) + col * 0.6, _CathedralRoomParams.x * onWall);
-
                 // Night glass: the building stays readable when the music is quiet.
                 col += half3(0.008, 0.012, 0.034) * (0.4 + h);
                 // Hi-hats scatter sparkles across random panes.

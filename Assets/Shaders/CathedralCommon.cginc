@@ -16,32 +16,6 @@ float4 _CathedralView;          // x windows show the real room behind the glass
 float4 _CathedralPlayhead;      // x amount 0..1 (notes are planted), y step position 0..16 (one bay per sixteenth)
 float4 _CathedralHit;           // xyz where a thrown orb last struck, w strength (decays)
 
-// Live passthrough camera frame (black when unavailable).
-sampler2D _CathedralRoom;
-float4 _CathedralRoomParams;    // x shown 0..1, y needs sRGB decode, z flip y, w strip width
-
-half3 RoomSample(float2 uv, float lod)
-{
-    uv.y = lerp(uv.y, 1.0 - uv.y, _CathedralRoomParams.z);
-    half3 c = tex2Dlod(_CathedralRoom, float4(uv, 0, lod)).rgb;
-    return lerp(c, c * c * (c * 0.305 + 0.682) + c * 0.0125, _CathedralRoomParams.y);
-}
-
-// Exposure for the room picture: a dark room (a hackerspace at night) still has to read as
-// glass, so scale by the frame's average brightness, taken from its smallest mip.
-half RoomGain()
-{
-    half avg = dot(RoomSample(float2(0.5, 0.5), 9.0), half3(0.3, 0.5, 0.2));
-    return clamp(0.32 / max(avg, 0.02), 1.0, 8.0);
-}
-
-half3 RoomGlass(float2 uv, float lod, half gain)
-{
-    half3 c = RoomSample(uv, lod) * gain;
-    half g = dot(c, half3(0.3, 0.5, 0.2));
-    return max(lerp(g.xxx, c, 1.7), 0.0);          // stained glass is more saturated than a camera
-}
-
 float Band(int i) { return _CathedralSpectrum[i >> 2][i & 3]; }
 
 float BandLerp(float x)

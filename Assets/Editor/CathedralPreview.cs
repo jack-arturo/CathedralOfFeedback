@@ -36,7 +36,6 @@ public static class CathedralPreview
         var analyzer = Object.FindFirstObjectByType<SpectrumAnalyzer>();
         var dsp = new CathedralDsp(Rate);
         analyzer.Bind(dsp);
-        var room = Object.FindFirstObjectByType<RoomCamera>(); room.Push(0f);
         var orbs = Object.FindObjectsByType<GrabbableOrb>(FindObjectsSortMode.None);
         Array.Sort(orbs, (a, b) => a.orbIndex.CompareTo(b.orbIndex));
 
@@ -94,7 +93,6 @@ public static class CathedralPreview
 
             if (shot < shots.Length && t >= shots[shot])
             {
-                if (shot == shots.Length - 1) { room.LatchFrom(TestFrame()); room.Push(1f); field.Tick(dt); }
                 string tag = $"t{shots[shot]:00.0}".Replace(".", "_");
                 Shoot($"{outDir}/{tag}_front.png", 0f, 0f, 96f);
                 Shoot($"{outDir}/{tag}_up.png", -62f, 20f, 96f);
@@ -122,26 +120,6 @@ public static class CathedralPreview
         };
         if (orb != null && held) orb.transform.position = pos;
         if (held) field.AddSplat(pos, GrabbableOrb.ColorForNote(note, hue), 1.3f + speed * 0.9f, 0.055f);
-    }
-
-    /// <summary>Stand-in camera frame: sky-to-ground gradient, a red figure left of centre, a yellow sun top right.</summary>
-    static Texture2D TestFrame()
-    {
-        const int w = 320, h = 240;
-        var tex = new Texture2D(w, h, TextureFormat.RGBA32, false, false) { hideFlags = HideFlags.HideAndDontSave };
-        var px = new Color32[w * h];
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
-            {
-                float u = x / (float)w, v = y / (float)h;
-                Color c = Color.Lerp(new Color(0.25f, 0.2f, 0.12f), new Color(0.2f, 0.45f, 0.85f), v);
-                if (Mathf.Abs(u - 0.42f) < 0.06f && v > 0.15f && v < 0.6f) c = new Color(0.9f, 0.15f, 0.1f);
-                if ((new Vector2(u - 0.42f, (v - 0.68f) * 0.75f)).magnitude < 0.06f) c = new Color(1f, 0.75f, 0.6f);
-                if ((new Vector2(u - 0.62f, (v - 0.85f) * 0.75f)).magnitude < 0.05f) c = new Color(1f, 0.95f, 0.2f);
-                px[y * w + x] = c;
-            }
-        tex.SetPixels32(px); tex.Apply();
-        return tex;
     }
 
     static void Shoot(string path, float pitch, float yaw, float fov)

@@ -22,7 +22,6 @@ namespace CathedralOfFeedback
             new Color(0.55f, 0.75f, 1f),     // Virtual
             new Color(0.2f, 1f, 0.6f),       // Windows
             new Color(1f, 0.6f, 0.15f),      // Open
-            new Color(1f, 0.25f, 0.8f),      // RoomInGlass
         };
 
         Vector3 home, vel;

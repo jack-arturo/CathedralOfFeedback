@@ -94,7 +94,7 @@ public static class CathedralBuilder
 
         var glassMat = MakeMat("Glass", "Cathedral/Glass");
         var stoneMat = MakeMat("Stone", "Cathedral/Stone");
-        var floorMat = MakeMat("Floor", "Cathedral/Floor");
+        var floorMat = MakeMat("Floor", "Cathedral/Floor", m => m.SetFloat("_TileSize", FloorLights.Tile));
         var stepMat = MakeMat("FeedbackStep", "Hidden/Cathedral/FeedbackStep");
         var coreMat = MakeMat("OrbCore", "Cathedral/Orb", m => { m.SetFloat("_Power", 1.6f); m.SetFloat("_Rim", 0f); m.SetFloat("_Hot", 0.7f); });
         var haloMat = MakeMat("OrbHalo", "Cathedral/Orb", m => { m.SetFloat("_Power", 3.5f); m.SetFloat("_Rim", 0f); m.SetFloat("_Hot", 0f); });
@@ -105,6 +105,9 @@ public static class CathedralBuilder
             m.SetColor("_Color", new Color(0.45f, 0.8f, 1f, 0.9f));
         });
         var trailMat = MakeMat("Trail", "Cathedral/Glow", m => m.SetColor("_Color", new Color(1f, 1f, 1f, 0.9f)));
+        var sparkMat = MakeMat("Spark", "Cathedral/Spark");
+        var bounce = new PhysicsMaterial("CometBounce") { bounciness = 0.85f, bounceCombine = PhysicsMaterialCombine.Maximum, dynamicFriction = 0f, staticFriction = 0f };
+        AssetDatabase.CreateAsset(bounce, MatDir + "/CometBounce.physicMaterial");
 
         // Audio: one synth, one clock, one analyser.
         var audio = new GameObject("Audio");
@@ -126,7 +129,8 @@ public static class CathedralBuilder
         {
             ("welcome", "vo_welcome"), ("grabHint", "vo_grab_hint"), ("held", "vo_held"), ("plantHint", "vo_plant_hint"),
             ("plantDone", "vo_plant_done"), ("throwHint", "vo_throw"), ("both", "vo_both"), ("drop", "vo_drop"),
-            ("prism", "vo_prism"), ("world", "vo_world"), ("bell", "sfx_bell"), ("choir", "sfx_choir"),
+            ("prism", "vo_prism"), ("world", "vo_world"), ("harvest", "vo_harvest"),
+            ("bell", "sfx_bell"), ("choir", "sfx_choir"), ("shatter", "sfx_shatter"), ("rise", "sfx_rise"),
         })
         {
             var clip = AssetDatabase.LoadAssetAtPath<AudioClip>($"Assets/Audio/{file}.wav");
@@ -147,7 +151,6 @@ public static class CathedralBuilder
         slab.GetComponent<BoxCollider>().size = new Vector3(24f, 0.5f, 24f);
         var field = root.AddComponent<FeedbackField>();
         Set(field, "stepMaterial", stepMat);
-        root.AddComponent<RoomCamera>();
         var director = root.AddComponent<CathedralDirector>();
         director.shellRenderer = architect.shell.GetComponent<Renderer>();
 
@@ -158,7 +161,11 @@ public static class CathedralBuilder
 
         // Planted notes (the room as a step sequencer) and the columns as drums.
         var garden = root.AddComponent<SeedGarden>();
-        Set(garden, "seedMaterial", coreMat);
+        Set(garden, "seedMaterial", coreMat); Set(garden, "threadMaterial", trailMat); Set(garden, "sparkMaterial", sparkMat);
+        // Thrown light: the orbs stay with the player, comets carry the throw.
+        var comets = root.AddComponent<CometPool>();
+        Set(comets, "bodyMaterial", coreMat); Set(comets, "trailMaterial", trailMat); Set(comets, "bounce", bounce);
+        root.AddComponent<FloorLights>();
         var columns = new GameObject("ColumnDrums");
         columns.transform.SetParent(root.transform, false);
         for (int k = 0; k < 8; k++)
@@ -239,16 +246,8 @@ public static class CathedralBuilder
         var orb = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         orb.name = name; orb.transform.position = pos; orb.transform.localScale = Vector3.one * 0.1f;
         orb.GetComponent<Renderer>().sharedMaterial = coreMat; Strip(orb);
-        var bounce = AssetDatabase.LoadAssetAtPath<PhysicsMaterial>(MatDir + "/OrbBounce.physicMaterial");
-        if (bounce == null)
-        {
-            bounce = new PhysicsMaterial("OrbBounce") { bounciness = 0.85f, bounceCombine = PhysicsMaterialCombine.Maximum, dynamicFriction = 0f, staticFriction = 0f };
-            AssetDatabase.CreateAsset(bounce, MatDir + "/OrbBounce.physicMaterial");
-        }
-        orb.GetComponent<Collider>().sharedMaterial = bounce;
         var rb = orb.AddComponent<Rigidbody>();
-        rb.useGravity = false; rb.linearDamping = 0.35f; rb.isKinematic = true;
-        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+        rb.useGravity = false; rb.isKinematic = true;
 
         var halo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         Object.DestroyImmediate(halo.GetComponent<Collider>());

@@ -5,24 +5,27 @@ namespace CathedralOfFeedback
     /// <summary>
     /// AutoJack's voice. A short tour that teaches the gestures in the order people find them:
     /// each line waits for the player to do the thing (and confirms it), or nudges them after a
-    /// while if they have not. The music ducks under the voice. The tour starts again when the
-    /// headset has been off for a while, so every new wearer gets welcomed.
+    /// while if they have not. The music drops well back under the voice. The tour starts again
+    /// when the headset has been off for a while, so every new wearer gets welcomed. Also plays
+    /// the recorded effects (bell, choir, breaking glass, the harvest swirl).
     /// </summary>
     [DefaultExecutionOrder(60)]
     public class Narrator : MonoBehaviour
     {
         public static Narrator Instance { get; private set; }
+        public enum Fx { Bell, Choir, Shatter, Rise }
 
         [SerializeField] AudioSource voice, effects;
-        [SerializeField] AudioClip welcome, grabHint, held, plantHint, plantDone, throwHint, both, drop, prism, world;
-        [SerializeField] AudioClip bell, choir;
+        [SerializeField] AudioClip welcome, grabHint, held, plantHint, plantDone, throwHint, both, drop, prism, world, harvest;
+        [SerializeField] AudioClip bell, choir, shatter, rise;
         [Tooltip("Seconds off the head before the tour is reset for the next wearer.")]
         [SerializeField] float resetAfter = 20f;
-        [SerializeField, Range(0, 1)] float duckTo = 0.5f;
+        [Tooltip("How far the music is pulled down while AutoJack speaks.")]
+        [SerializeField, Range(0, 1)] float duckTo = 0.2f;
 
         int stage;
         float timer, gap = 10f, wornTime, offTime, heldFor, duck, dropAt = -1f;
-        bool saidGrabHint, saidPlantHint, saidWorld, saidDrop, dropped;
+        bool saidGrabHint, saidPlantHint, saidWorld, saidDrop, saidHarvest, dropped;
         AudioClip pending;
 
         void Awake() { Instance = this; }
@@ -31,7 +34,7 @@ namespace CathedralOfFeedback
         void ResetTour()
         {
             stage = 0; timer = 0f; wornTime = 0f; heldFor = 0f; dropAt = -1f; pending = null;
-            saidGrabHint = saidPlantHint = saidWorld = saidDrop = dropped = false;
+            saidGrabHint = saidPlantHint = saidWorld = saidDrop = saidHarvest = dropped = false;
             if (voice != null) voice.Stop();
         }
 
@@ -42,24 +45,32 @@ namespace CathedralOfFeedback
             voice.clip = clip; voice.Play(); gap = 0f;
         }
 
-        /// <summary>The string was brought back together: bell, choir, and (once) a word from AutoJack.</summary>
+        /// <summary>Play one of the recorded effects.</summary>
+        public void Effect(Fx kind, float gain)
+        {
+            if (effects == null) return;
+            AudioClip clip = kind == Fx.Bell ? bell : kind == Fx.Choir ? choir : kind == Fx.Shatter ? shatter : rise;
+            if (clip != null) effects.PlayOneShot(clip, gain);
+        }
+
+        /// <summary>A drop (the string, or a harvest): bell, choir, and (once) a word from AutoJack.</summary>
         public void OnDrop()
         {
             dropped = true;
-            if (effects != null)
-            {
-                if (bell != null) effects.PlayOneShot(bell, 0.85f);
-                if (choir != null) effects.PlayOneShot(choir, 0.55f);
-            }
+            Effect(Fx.Bell, 0.85f);
+            Effect(Fx.Choir, 0.55f);
             if (!saidDrop) { saidDrop = true; dropAt = Time.time + 0.9f; }
         }
+
+        /// <summary>The player found the clap on their own; no need to explain it.</summary>
+        public void OnHarvest() { saidHarvest = true; }
 
         /// <summary>The player changed room mode. The first time the real room appears, say so.</summary>
         public void OnMode(CathedralDirector.Mode mode)
         {
             if (saidWorld || (mode != CathedralDirector.Mode.Windows && mode != CathedralDirector.Mode.Open)) return;
             saidWorld = true;
-            if (effects != null && choir != null) effects.PlayOneShot(choir, 0.4f);
+            Effect(Fx.Choir, 0.4f);
             Say(world);
         }
 
@@ -68,8 +79,8 @@ namespace CathedralOfFeedback
             float dt = Time.deltaTime;
             bool speaking = voice != null && voice.isPlaying;
 
-            // Duck the music under the voice.
-            duck = Mathf.MoveTowards(duck, speaking ? 1f : 0f, dt * (speaking ? 6f : 1.5f));
+            // Pull the music back under the voice: quickly down, slowly back.
+            duck = Mathf.MoveTowards(duck, speaking ? 1f : 0f, dt * (speaking ? 10f : 1.2f));
             var audioHost = CathedralAudio.Instance;
             if (audioHost != null && audioHost.Dsp != null) audioHost.Dsp.Master = Mathf.Lerp(0.85f, 0.85f * duckTo, duck);
 
@@ -94,6 +105,9 @@ namespace CathedralOfFeedback
             heldFor = holding > 0 ? heldFor + dt : 0f;
             int planted = SeedGarden.Instance != null ? SeedGarden.Instance.Count : 0;
 
+            // Once a few notes are hanging, tell them about the clap (unless they found it).
+            if (!saidHarvest && stage >= 3 && planted >= 4 && gap > 2.5f) { saidHarvest = true; Say(harvest); return; }
+
             switch (stage)
             {
                 case 0:     // arrive
@@ -105,14 +119,14 @@ namespace CathedralOfFeedback
                     break;
                 case 2:     // leave a note
                     if (planted > 0 && gap > 1f) { Say(plantDone); stage = 3; timer = 0f; }
-                    else if (timer > 9f && !saidPlantHint) { saidPlantHint = true; timer = 0f; Say(plantHint); }
+                    else if (timer > 6f && !saidPlantHint) { saidPlantHint = true; timer = 0f; Say(plantHint); }
                     else if (saidPlantHint && timer > 14f) { stage = 3; timer = 0f; }
                     break;
                 case 3:     // throw
-                    if (timer > 7f) { Say(throwHint); stage = 4; timer = 0f; }
+                    if (timer > 8f) { Say(throwHint); stage = 4; timer = 0f; }
                     break;
                 case 4:     // the string
-                    if ((timer > 12f || holding >= 2) && gap > 1.5f) { Say(both); stage = 5; timer = 0f; }
+                    if ((timer > 14f || holding >= 2) && gap > 1.5f) { Say(both); stage = 5; timer = 0f; }
                     break;
                 case 5:     // the room
                     if ((timer > 16f || dropped) && gap > 2.5f) { if (!saidWorld) Say(prism); stage = 6; }

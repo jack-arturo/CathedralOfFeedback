@@ -5,22 +5,28 @@ namespace CathedralOfFeedback
 {
     /// <summary>
     /// A playable orb. While held, height picks a pentatonic note and hand speed opens the
-    /// filter; the synth plucks it on the beat grid so anything you do is in time. It paints
-    /// the wall behind it into the feedback field, and when thrown it flies, then drifts home
-    /// so it can never be lost. Its movement is replayed by <see cref="TrailEcho"/>.
+    /// filter; the synth plucks it on the beat grid so anything you do is in time.
+    ///
+    /// The orb never leaves you. Hold it still for half a second and it buds a note that stays
+    /// hanging in the air, tied back to the orb by a thread (see <see cref="SeedGarden"/>). Throw
+    /// it and what flies is a comet of its light (see <see cref="CometPool"/>) while the orb
+    /// itself re-forms by your hand, so you can keep playing, or keep throwing. Its movement is
+    /// replayed by <see cref="TrailEcho"/>.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     public class GrabbableOrb : MonoBehaviour
     {
         public static readonly List<GrabbableOrb> All = new List<GrabbableOrb>();
         public const int VoicesPerOrb = 5;
+        const float ThrowSpeed = 0.9f, DwellSeconds = 0.55f, DwellRadius = 0.03f, PlantSpacing = 0.16f;
+        static readonly int[] Scale = { 0, 3, 5, 7, 10, 12, 15, 17, 19, 22 };   // A minor pentatonic, two octaves
+        static readonly int ColorId = Shader.PropertyToID("_Color");
+
         /// <summary>Standing eye height of the current player; the note range hangs off it so the
         /// instrument fits a child, a seated player, or a headset with a bad floor estimate.</summary>
         public static float PlayerHeight = 1.6f;
         public static float MinHeight => PlayerHeight - 1.0f;      // about knee height
         public static float MaxHeight => PlayerHeight + 0.4f;      // a comfortable reach overhead
-        static readonly int[] Scale = { 0, 3, 5, 7, 10, 12, 15, 17, 19, 22 };   // A minor pentatonic, two octaves
-        static readonly int ColorId = Shader.PropertyToID("_Color");
 
         [Tooltip("0 or 1: which block of five synth voices (one live, four echoes) this orb owns.")]
         public int orbIndex;
@@ -29,11 +35,9 @@ namespace CathedralOfFeedback
         public float liveGain = 0.42f;
         public Renderer core, halo;
         public TrailRenderer Trail;
-        [SerializeField] float returnDelay = 2.6f;
         [Tooltip("Resting place relative to the player: metres to the right (negative = left).")]
         public float sideOffset = 0.22f;
 
-        public Rigidbody Body { get; private set; }
         public bool IsHeld { get; private set; }
         public Vector3 Velocity { get; private set; }
         public float Speed { get; private set; }
@@ -45,9 +49,8 @@ namespace CathedralOfFeedback
         public Color NoteColor => ColorForNote(NoteIndex, baseHue);
 
         OrbGrabber holder;
-        Vector3 home, lastPos, homeVel, baseScale;
-        float freeTime = 999f, awayTime, invite, heldTime;
-        Vector3 lean;
+        Vector3 home, lastPos, homeVel, baseScale, haloScale = Vector3.one, lean, lastPlant = Vector3.one * 999f, dwellAnchor;
+        float awayTime, invite, heldTime, dwell, ring, reform = 1f;
         MaterialPropertyBlock mpb;
 
         public static int NoteForHeight(float y) =>
@@ -67,12 +70,15 @@ namespace CathedralOfFeedback
 
         void Awake()
         {
-            Body = GetComponent<Rigidbody>();
-            Body.isKinematic = true;
+            // The orb is moved by hand, never by physics: what gets thrown is a comet.
+            GetComponent<Rigidbody>().isKinematic = true;
+            var col = GetComponent<Collider>();
+            if (col != null) col.enabled = false;
             if (Trail == null) Trail = GetComponentInChildren<TrailRenderer>();
             if (Trail != null) Trail.emitting = false;
             home = lastPos = transform.position;
             baseScale = transform.localScale;
+            if (halo != null) haloScale = halo.transform.localScale;
             mpb = new MaterialPropertyBlock();
             NoteIndex = NoteForHeight(home.y);
         }
@@ -82,58 +88,39 @@ namespace CathedralOfFeedback
 
         public void Grab(OrbGrabber hand)
         {
-            holder = hand; IsHeld = true; heldTime = 0f;
-            Body.isKinematic = true;
+            holder = hand; IsHeld = true; heldTime = 0f; dwell = 0f; dwellAnchor = transform.position;
+            lastPlant = Vector3.one * 999f;
             if (Trail != null) Trail.emitting = true;
         }
 
         public void Release()
         {
-            IsHeld = false; holder = null; freeTime = 0f;
-            Body.isKinematic = false;
-
-            // Let go gently and the orb leaves its note hanging in the air; throw it and it flies.
-            float speed = Velocity.magnitude;
-            if (speed < 0.5f && heldTime > 0.35f && SeedGarden.Instance != null)
+            IsHeld = false; holder = null; dwell = 0f;
+            Vector3 pos = transform.position;
+            if (Velocity.magnitude >= ThrowSpeed)
             {
-                SeedGarden.Instance.Plant(transform.position, NoteIndex, Frequency, baseHue);
-                Body.linearVelocity = Vector3.zero;
-                freeTime = returnDelay - 0.35f;            // head home almost at once
-                return;
+                // A throw: a comet of this orb's light flies off, and the orb re-forms at its
+                // resting place straight away, so the player's hands are never empty for long.
+                CometPool.Launch(pos, Velocity * 1.35f, NoteColor, Frequency);
+                if (Trail != null) { Trail.emitting = false; Trail.Clear(); }
+                transform.position = home; homeVel = Vector3.zero; lastPos = home;
+                reform = 0f;
             }
-
-            // A throw is boosted a little and, if it is roughly towards a column, steered onto it,
-            // so a casual toss reliably rings something.
-            Vector3 v = Vector3.ClampMagnitude(Velocity * 1.35f, 9f);
-            Vector3 flat = new Vector3(v.x, 0f, v.z);
-            if (flat.magnitude > 1.2f)
+            else if (heldTime > 0.35f && (pos - lastPlant).sqrMagnitude > PlantSpacing * PlantSpacing)
             {
-                float best = 22f; Vector3 aim = Vector3.zero;
-                for (int k = 0; k < 8; k++)
-                {
-                    float phi = 2f * Mathf.PI * (k + 0.5f) / 8f;
-                    Vector3 col = new Vector3(Mathf.Cos(phi), 0f, Mathf.Sin(phi)) * Nave.CanopyRadius;
-                    Vector3 to = col - transform.position; to.y = 0f;
-                    float ang = Vector3.Angle(flat, to);
-                    if (ang < best) { best = ang; aim = to.normalized; }
-                }
-                if (aim != Vector3.zero) { Vector3 steered = aim * flat.magnitude; v = new Vector3(steered.x, v.y, steered.z); }
+                Plant();            // a gentle let-go leaves the note behind too
             }
-            Body.linearVelocity = v;
         }
 
-        void OnCollisionEnter(Collision c)
+        void Plant()
         {
-            if (IsHeld || Body.isKinematic) return;
-            float hit = Mathf.Clamp01(c.relativeVelocity.magnitude / 4f);
-            if (hit < 0.08f) return;
-            var column = c.collider.GetComponent<ColumnDrum>();
-            var audioHost = CathedralAudio.Instance;
-            if (audioHost != null && audioHost.Dsp != null)
-                audioHost.Dsp.OneShot(1, column != null ? column.Frequency : 82f, 0.2f + 0.45f * hit, PanFor(transform.position));
-            if (SeedGarden.Instance != null) SeedGarden.Instance.Strike(c.GetContact(0).point, column != null ? 0.5f + 0.5f * hit : 0.3f * hit);
-            freeTime = Mathf.Min(freeTime, returnDelay - 0.9f);     // let it ricochet before heading home
+            if (SeedGarden.Instance == null) return;
+            SeedGarden.Instance.Plant(transform.position, NoteIndex, Frequency, baseHue, this);
+            lastPlant = transform.position; dwell = 0f; ring = 1f;
         }
+
+        /// <summary>One of this orb's planted notes just sounded.</summary>
+        public void Ring() { ring = 1f; }
 
         /// <summary>
         /// The orbs rest in front of the player at chest height. If the player walks off or
@@ -157,7 +144,7 @@ namespace CathedralOfFeedback
         void Update()
         {
             float dt = Mathf.Max(Time.deltaTime, 1e-4f);
-            if (!IsHeld) FollowPlayer(dt);
+            FollowPlayer(dt);
             if (IsHeld && holder != null)
             {
                 transform.position = holder.GrabPoint;
@@ -165,41 +152,20 @@ namespace CathedralOfFeedback
             }
             else
             {
-                freeTime += dt;
-                // The glass rings when a thrown orb reaches it, and sends the orb back.
-                Vector3 p0 = transform.position;
-                float rad = new Vector2(p0.x, p0.z).magnitude;
-                if (!Body.isKinematic && rad > Nave.Radius - 0.35f && p0.y < Nave.WallHeight + 3f)
+                Vector3 rest = home + Vector3.up * (Mathf.Sin(Time.time * 0.9f + orbIndex * 2.1f) * 0.025f);
+                // A free hand coming close makes the orb lean towards it and swell: "take me".
+                invite = 0f;
+                var hands = OrbGrabber.All;
+                for (int i = 0; i < hands.Count; i++)
                 {
-                    Vector3 n = new Vector3(-p0.x, 0f, -p0.z).normalized;
-                    Vector3 vel = Body.linearVelocity;
-                    if (Vector3.Dot(vel, n) < 0f)
-                    {
-                        Body.linearVelocity = Vector3.Reflect(vel, n) * 0.6f;
-                        var host = CathedralAudio.Instance;
-                        if (host != null && host.Dsp != null) host.Dsp.OneShot(0, Frequency * 2f, 0.3f, PanFor(p0));
-                        if (SeedGarden.Instance != null) SeedGarden.Instance.Strike(p0, 0.7f);
-                    }
+                    if (hands[i].Holding) continue;
+                    Vector3 to = hands[i].GrabPoint - rest;
+                    float k = Mathf.Clamp01(1f - (to.magnitude - 0.1f) / 0.3f);
+                    if (k > invite) { invite = k; lean = to.normalized * (0.05f * k); }
                 }
-                bool tooFar = (transform.position - home).sqrMagnitude > 144f || transform.position.y < 0.06f;
-                if (freeTime > returnDelay || tooFar)
-                {
-                    if (!Body.isKinematic) { Body.linearVelocity = Vector3.zero; Body.isKinematic = true; homeVel = Vector3.zero; }
-                    Vector3 rest = home + Vector3.up * (Mathf.Sin(Time.time * 0.9f + orbIndex * 2.1f) * 0.025f);
-                    // A free hand coming close makes the orb lean towards it and swell: "take me".
-                    invite = 0f;
-                    var hands = OrbGrabber.All;
-                    for (int i = 0; i < hands.Count; i++)
-                    {
-                        if (hands[i].Holding) continue;
-                        Vector3 to = hands[i].GrabPoint - rest;
-                        float k = Mathf.Clamp01(1f - (to.magnitude - 0.1f) / 0.3f);
-                        if (k > invite) { invite = k; lean = to.normalized * (0.05f * k); }
-                    }
-                    rest += lean * (invite > 0f ? 1f : 0f);
-                    transform.position = Vector3.SmoothDamp(transform.position, rest, ref homeVel, 0.55f);
-                    if (Trail != null && Trail.emitting && (transform.position - rest).sqrMagnitude < 0.01f) Trail.emitting = false;
-                }
+                if (invite > 0f) rest += lean;
+                transform.position = Vector3.SmoothDamp(transform.position, rest, ref homeVel, 0.3f);
+                if (Trail != null && Trail.emitting && (transform.position - rest).sqrMagnitude < 0.01f) Trail.emitting = false;
             }
 
             Vector3 pos = transform.position;
@@ -213,6 +179,17 @@ namespace CathedralOfFeedback
             {
                 NoteIndex = NoteForHeight(pos.y);
                 Height01 = Mathf.InverseLerp(MinHeight, MaxHeight, pos.y);
+
+                // Hold still and the orb buds a note where it is; move a hand's width on before the
+                // next. Not while both orbs are held: then the hands are busy with the string.
+                int heldCount = 0;
+                for (int i = 0; i < All.Count; i++) if (All[i].IsHeld) heldCount++;
+                // "Still" means staying inside a small sphere, which hand-tracking jitter cannot break.
+                bool room = (pos - lastPlant).sqrMagnitude > PlantSpacing * PlantSpacing;
+                if ((pos - dwellAnchor).sqrMagnitude > DwellRadius * DwellRadius) { dwellAnchor = pos; dwell = 0f; }
+                else if (room && heldTime > 0.3f && heldCount < 2) dwell += dt;
+                else dwell = 0f;
+                if (dwell >= DwellSeconds) Plant();
             }
 
             var audioHost = CathedralAudio.Instance;
@@ -227,18 +204,27 @@ namespace CathedralOfFeedback
 
             var an = SpectrumAnalyzer.Instance;
             float pulse = an != null ? an.BeatPulse : 0f;
-            bool flying = !IsHeld && !Body.isKinematic;
-            Color c = IsHeld || flying ? NoteColor : Color.HSVToRGB(baseHue, 0.75f, 1f);
-            if (IsHeld || flying) invite = 0f;
-            float glow = IsHeld ? 1.3f + pulse * 0.9f : flying ? 1.1f : 0.55f + pulse * 0.25f + invite * 0.9f;
-            transform.localScale = baseScale * (1f + (IsHeld ? 0.22f : 0.08f) * pulse + invite * 0.3f);
+            ring = Mathf.MoveTowards(ring, 0f, dt * 3f);
+            reform = Mathf.MoveTowards(reform, 1f, dt / 0.3f);
+            float charge = Mathf.Clamp01(dwell / DwellSeconds);
+            if (IsHeld) invite = 0f;
+
+            Color c = IsHeld ? NoteColor : Color.HSVToRGB(baseHue, 0.75f, 1f);
+            float glow = (IsHeld ? 1.3f + pulse * 0.9f + charge * 1.2f : 0.55f + pulse * 0.25f + invite * 0.9f) + ring * 1.4f;
+            float grow = Mathf.SmoothStep(0.15f, 1f, reform);
+            transform.localScale = baseScale * (grow * (1f + (IsHeld ? 0.22f : 0.08f) * pulse + invite * 0.3f + ring * 0.25f));
             if (core != null) { c.a = glow; mpb.SetColor(ColorId, c); core.SetPropertyBlock(mpb); }
-            if (halo != null) { c.a = glow * 0.45f; mpb.SetColor(ColorId, c); halo.SetPropertyBlock(mpb); }
+            if (halo != null)
+            {
+                // The halo draws in as a note charges, then snaps back out when it buds.
+                halo.transform.localScale = haloScale * (1f - 0.55f * charge);
+                c.a = glow * 0.45f * (1f + charge); mpb.SetColor(ColorId, c); halo.SetPropertyBlock(mpb);
+            }
             if (Trail != null) { c.a = 1f; Trail.startColor = c; Trail.endColor = new Color(c.r, c.g, c.b, 0f); }
 
             var field = FeedbackField.Instance;
-            if (field != null && (IsHeld || flying))
-                field.AddSplat(pos, NoteColor, IsHeld ? 1.3f + Mathf.Min(Speed, 2f) * 0.9f : 0.9f, IsHeld ? 0.055f : 0.04f);
+            if (field != null && IsHeld)
+                field.AddSplat(pos, NoteColor, 1.3f + Mathf.Min(Speed, 2f) * 0.9f, 0.055f);
         }
     }
 }

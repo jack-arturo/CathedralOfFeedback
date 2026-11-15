@@ -59,13 +59,6 @@ Shader "Hidden/Cathedral/FeedbackStep"
                 float base = smoothstep(0.972, 0.992, v);
                 float band = BandLerp(u * 15.0);
                 half3 bandCol = Jewel(_CathedralMix.w + u * 0.42);
-                // With the camera on, the light takes its hue from a slit across the real room.
-                half3 slit = RoomSample(float2(0.5 + (u - 0.5) * 0.8, 0.5), 3.0);
-                // Only where the room actually has colour: a grey room must not grey out the building.
-                half hi = max(slit.r, max(slit.g, slit.b)), lo = min(slit.r, min(slit.g, slit.b));
-                half sat = (hi - lo) / max(hi, 0.03);
-                slit = max(lerp(hi.xxx, slit, 1.8), 0.0) / max(hi, 0.03);
-                bandCol = lerp(bandCol, slit, _CathedralRoomParams.x * 0.6 * smoothstep(0.2, 0.55, sat));
                 half3 src = bandCol * (pow(band, 2.1) * _Source.x) + half3(1.0, 0.9, 0.8) * _Source.w;
                 col = lerp(col, src, base);
 

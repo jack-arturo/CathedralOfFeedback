@@ -28,8 +28,8 @@ namespace CathedralOfFeedback
         static readonly int ViewId = Shader.PropertyToID("_CathedralView");
         float calibTime, calibPeak, rigOffset, playerHeight = 1.6f, unwornTime;
         bool centred;
-        /// <summary>Virtual: just the building. Windows: the real room in stereo passthrough behind the lancet glass. Open: the walls dissolve into the real room. RoomInGlass: the passthrough camera as a leaded mosaic in the windows.</summary>
-        public enum Mode { Virtual, Windows, Open, RoomInGlass }
+        /// <summary>Virtual: just the building. Windows: the real room in stereo passthrough behind the lancet glass. Open: the walls dissolve into the real room.</summary>
+        public enum Mode { Virtual, Windows, Open }
         int mode;
         float perfTime, perfWorst; int perfFrames;
 
@@ -37,11 +37,11 @@ namespace CathedralOfFeedback
 
         public void CycleMode()
         {
-            mode = (mode + 1) % 4;
+            mode = (mode + 1) % 3;
             Debug.Log("[Cathedral] mode " + (Mode)mode);
             if (Narrator.Instance != null) Narrator.Instance.OnMode((Mode)mode);
             var audioHost = CathedralAudio.Instance;
-            if (audioHost != null && audioHost.Dsp != null) audioHost.Dsp.Chime(880f * Mathf.Pow(2f, new[] { 0f, 3f, 7f, 10f }[mode] / 12f));
+            if (audioHost != null && audioHost.Dsp != null) audioHost.Dsp.Chime(880f * Mathf.Pow(2f, new[] { 0f, 3f, 7f }[mode] / 12f));
         }
 
         public static void PushGlobals(float reveal, float passthrough, float time, float hue, float exposure)
@@ -102,7 +102,6 @@ namespace CathedralOfFeedback
             Passthrough = mode == (int)Mode.Open ? 1f : 0f;
             windowMix = Mathf.MoveTowards(windowMix, mode == (int)Mode.Windows ? 1f : 0f, dt * 0.8f);
             Shader.SetGlobalVector(ViewId, new Vector4(windowMix, 0f, 0f, 0f));
-            if (RoomCamera.Instance != null) RoomCamera.Instance.Mix = mode == (int)Mode.RoomInGlass ? 1f : 0f;
             passMix = Mathf.MoveTowards(passMix, Passthrough, dt * 0.8f);
             if (passthroughLayer != null)
             {
@@ -183,7 +182,7 @@ namespace CathedralOfFeedback
 #endif
                 string pose = head != null ? $"head {head.position.x:F1},{head.position.y:F2},{head.position.z:F1} fwd {head.forward.x:F1},{head.forward.y:F1},{head.forward.z:F1}" : "no head";
                 Debug.Log($"[Cathedral] fps {perfFrames / perfTime:F1} worst {perfWorst * 1000f:F1}ms energy {Energy:F2} held {held} hands {handsTracked} " +
-                          gpu + $"audio {(an != null ? an.Level : -1f):F3} mode {(Mode)mode} pass {passMix:F1} room {(RoomCamera.Instance != null ? RoomCamera.Instance.Shown : 0f):F1} beat {(an != null ? an.BeatPosition : 0):F0} {pose} rig {rigOffset:F2}");
+                          gpu + $"notes {(SeedGarden.Instance != null ? SeedGarden.Instance.Count : 0)} audio {(an != null ? an.Level : -1f):F3} mode {(Mode)mode} pass {passMix:F1} beat {(an != null ? an.BeatPosition : 0):F0} {pose} rig {rigOffset:F2}");
                 perfFrames = 0; perfTime = 0f; perfWorst = 0f;
             }
         }
