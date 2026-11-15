@@ -133,6 +133,7 @@ public static class CathedralBuilder
             ("plantDone", "vo_plant_done"), ("throwHint", "vo_throw"), ("both", "vo_both"), ("drop", "vo_drop"),
             ("prism", "vo_prism"), ("world", "vo_world"), ("harvest", "vo_harvest"),
             ("catchHint", "vo_catch_hint"), ("catchDone", "vo_catch_done"), ("bloom", "vo_bloom"),
+            ("secretFirst", "vo_secret_first"), ("secretAll", "vo_secret_all"),
             ("bell", "sfx_bell"), ("choir", "sfx_choir"), ("shatter", "sfx_shatter"), ("rise", "sfx_rise"), ("catchFx", "sfx_catch"),
         })
         {
@@ -169,6 +170,9 @@ public static class CathedralBuilder
         var comets = root.AddComponent<CometPool>();
         Set(comets, "bodyMaterial", coreMat); Set(comets, "trailMaterial", trailMat); Set(comets, "bounce", bounce);
         root.AddComponent<FloorLights>();
+        // Eight secrets, one gem on each column.
+        var secrets = root.AddComponent<Secrets>();
+        Set(secrets, "gemMaterial", coreMat); Set(secrets, "haloMaterial", haloMat);
         var columns = new GameObject("ColumnDrums");
         columns.transform.SetParent(root.transform, false);
         for (int k = 0; k < 8; k++)

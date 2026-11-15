@@ -16,7 +16,7 @@ namespace CathedralOfFeedback
         public enum Fx { Bell, Choir, Shatter, Rise, Catch }
 
         [SerializeField] AudioSource voice, effects, choirSource;
-        [SerializeField] AudioClip welcome, grabHint, held, plantHint, plantDone, throwHint, both, drop, prism, world, harvest, catchHint, catchDone, bloom;
+        [SerializeField] AudioClip welcome, grabHint, held, plantHint, plantDone, throwHint, both, drop, prism, world, harvest, catchHint, catchDone, bloom, secretFirst, secretAll;
         [SerializeField] AudioClip bell, choir, shatter, rise, catchFx;
         [Tooltip("Seconds off the head before the tour is reset for the next wearer.")]
         [SerializeField] float resetAfter = 20f;
@@ -25,7 +25,7 @@ namespace CathedralOfFeedback
 
         int stage;
         float timer, gap = 10f, wornTime, offTime, heldFor, duck, dropAt = -1f;
-        bool saidGrabHint, saidPlantHint, saidWorld, saidDrop, saidHarvest, saidCatchHint, saidCatchDone, saidBloom, dropped;
+        bool saidGrabHint, saidPlantHint, saidWorld, saidDrop, saidHarvest, saidCatchHint, saidCatchDone, saidBloom, saidSecret, dropped;
         AudioClip pending;
 
         void Awake() { Instance = this; }
@@ -34,7 +34,7 @@ namespace CathedralOfFeedback
         void ResetTour()
         {
             stage = 0; timer = 0f; wornTime = 0f; heldFor = 0f; dropAt = -1f; pending = null;
-            saidGrabHint = saidPlantHint = saidWorld = saidDrop = saidHarvest = saidCatchHint = saidCatchDone = saidBloom = dropped = false;
+            saidGrabHint = saidPlantHint = saidWorld = saidDrop = saidHarvest = saidCatchHint = saidCatchDone = saidBloom = saidSecret = dropped = false;
             if (voice != null) voice.Stop();
         }
 
@@ -82,6 +82,13 @@ namespace CathedralOfFeedback
         {
             if (saidCatchDone) return;
             saidCatchDone = saidCatchHint = true; Say(catchDone);
+        }
+
+        /// <summary>A secret's gem lit. Say what the gems are the first time, and say so when all are found.</summary>
+        public void OnSecret(int count, bool all)
+        {
+            if (all) Say(secretAll);
+            else if (!saidSecret) { saidSecret = true; Say(secretFirst); }
         }
 
         /// <summary>All eight columns were lit. Say so the first time.</summary>

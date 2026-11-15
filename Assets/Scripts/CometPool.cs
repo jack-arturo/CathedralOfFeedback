@@ -64,6 +64,7 @@ namespace CathedralOfFeedback
         IEnumerator Supernova(Vector3 pos, Color cometColor)
         {
             Debug.Log("[Cathedral] supernova");
+            Secrets.Found(Secrets.Supernova);
             nova = 1f;
             Color orbColor = Color.white; GrabbableOrb heldOrb = null;
             float best = 1f;
@@ -189,8 +190,12 @@ namespace CathedralOfFeedback
         }
 
         /// <summary>All eight columns are lit.</summary>
+        /// <summary>Bloom now, whatever the columns are doing (the finale).</summary>
+        public void ForceBloom() { if (bloom <= 0f) StartCoroutine(Bloom()); }
+
         IEnumerator Bloom()
         {
+            Secrets.Found(Secrets.Bloom);
             bloom = 1f;
             CathedralDirector.Stir(1f);
             Debug.Log("[Cathedral] bloom: all eight columns lit");
@@ -249,6 +254,7 @@ namespace CathedralOfFeedback
             Debug.Log($"[Cathedral] catch, streak {streak}");
 
             if (streak < 3) return;
+            Secrets.Found(Secrets.CatchDrop);
             // Three in a row: the room drops and every column answers.
             streak = 0; lastCatch = -100f; charge = 0f;
             if (dsp != null) dsp.Drop();
@@ -260,7 +266,9 @@ namespace CathedralOfFeedback
         }
 
         /// <summary>Throw a comet. A throw roughly towards a column is steered onto it.</summary>
-        public static void Launch(Vector3 pos, Vector3 velocity, Color color, float freq, GrabbableOrb source = null)
+        /// <param name="steer">How many degrees off a column a throw may be and still be steered onto it.</param>
+        /// <param name="rebound">Whether it flies back to the player to be caught after striking a column.</param>
+        public static void Launch(Vector3 pos, Vector3 velocity, Color color, float freq, GrabbableOrb source = null, float steer = 24f, bool rebound = true)
         {
             var pool = Instance;
             if (pool == null) return;
@@ -268,7 +276,7 @@ namespace CathedralOfFeedback
             Vector3 flat = new Vector3(v.x, 0f, v.z);
             if (flat.magnitude > 1.0f)
             {
-                float best = 24f; Vector3 aim = Vector3.zero;
+                float best = steer; Vector3 aim = Vector3.zero;
                 for (int k = 0; k < 8; k++)
                 {
                     Vector3 to = ColumnDrum.PositionOf(k) - pos; to.y = 0f;
@@ -280,7 +288,7 @@ namespace CathedralOfFeedback
             // Keep it fast enough to arrive: a soft lob should still reach the columns.
             if (v.magnitude < 4.5f) v = v.normalized * 4.5f;
             var c = pool.comets[pool.next]; pool.next = (pool.next + 1) % pool.size;
-            c.Fire(pos, v, color, freq, source);
+            c.Fire(pos, v, color, freq, source, rebound);
         }
 
         /// <summary>A comet struck a column.</summary>
@@ -307,7 +315,7 @@ namespace CathedralOfFeedback
                 for (int k = 0; k < 8; k++) all &= lit[k];
                 if (all) { rally = 0; StartCoroutine(Bloom()); return; }
             }
-            if (rally >= 3) { rally = 0; StartCoroutine(Carillon(column.index, true)); }
+            if (rally >= 3) { rally = 0; Secrets.Found(Secrets.Rally); StartCoroutine(Carillon(column.index, true)); }
         }
 
         /// <summary>The rally payoff: every column in the ring rings in turn, round from the one that was hit.</summary>
@@ -339,7 +347,7 @@ namespace CathedralOfFeedback
     {
         static readonly int ColorId = Shader.PropertyToID("_Color");
         Rigidbody body; Renderer rend; TrailRenderer trail; MaterialPropertyBlock mpb;
-        Color color; float freq, life; int bounces, strums; GrabbableOrb source;
+        Color color; float freq, life; int bounces, strums; GrabbableOrb source; bool returns = true;
         // The way back after a column strike.
         bool ripe; float ripeTime, ripeEnd, side, lift, returnSpeed; Vector3 approach;
 
@@ -349,9 +357,9 @@ namespace CathedralOfFeedback
             mpb = new MaterialPropertyBlock();
         }
 
-        public void Fire(Vector3 pos, Vector3 velocity, Color c, float f, GrabbableOrb from)
+        public void Fire(Vector3 pos, Vector3 velocity, Color c, float f, GrabbableOrb from, bool rebound)
         {
-            source = from;
+            source = from; returns = rebound;
             transform.position = pos;
             gameObject.SetActive(true);
             trail.Clear();
@@ -480,7 +488,7 @@ namespace CathedralOfFeedback
             if (column != null && CometPool.Instance != null)
             {
                 CometPool.Instance.ColumnHit(column, c.GetContact(0).point, hit);
-                BeginReturn();
+                if (returns) BeginReturn();
                 return;
             }
             if (hit < 0.1f) return;

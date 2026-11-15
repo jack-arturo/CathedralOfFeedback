@@ -15,7 +15,7 @@ namespace CathedralOfFeedback
         const int Points = 24;
         static readonly int[] Climb = { 0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24 };
         LineRenderer line;
-        float build, armedTime = -10f, dropCooldown;
+        float build, armedTime = -10f, dropCooldown, lastD = 1f, clapCooldown;
         readonly Vector3[] pts = new Vector3[Points];
 
         /// <summary>0..1: how far the string is stretched.</summary>
@@ -35,13 +35,42 @@ namespace CathedralOfFeedback
             var dsp = audioHost != null ? audioHost.Dsp : null;
             var field = FeedbackField.Instance;
             var an = SpectrumAnalyzer.Instance;
-            dropCooldown -= dt;
+            dropCooldown -= dt; clapCooldown -= dt;
 
             float target = 0f;
             if (a != null && b != null)
             {
                 Vector3 pa = a.transform.position, pb = b.transform.position;
                 float d = (pa - pb).magnitude;
+                float closing = (lastD - d) / dt; lastD = d;
+                // Clap the two orbs together (without having stretched the string): a crash, a
+                // shockwave, and every bell hanging in the room sounds at once.
+                if (d < 0.17f && closing > 1f && Time.time - armedTime > 2.5f && clapCooldown <= 0f)
+                {
+                    clapCooldown = 1.2f;
+                    Vector3 at = (pa + pb) * 0.5f;
+                    Color mix = Color.Lerp(a.NoteColor, b.NoteColor, 0.5f);
+                    int rang = 0;
+                    var garden = SeedGarden.Instance;
+                    if (garden != null)
+                    {
+                        garden.Ring(at, Color.white, 72, 6f);
+                        garden.Burst(at, mix, 50, 3.5f);
+                        garden.Strike(at, 1f);
+                        rang = garden.RingAll();
+                    }
+                    if (dsp != null)
+                    {
+                        dsp.OneShot(1, 220f, 0.5f, 0f);
+                        dsp.OneShot(0, 1760f, 0.18f, -0.5f); dsp.OneShot(0, 2093f, 0.16f, 0.5f); dsp.OneShot(0, 2637f, 0.14f, 0f);
+                    }
+                    if (field != null) field.Flash(0.45f);
+                    if (FloorLights.Instance != null) FloorLights.Instance.Pulse(at, mix);
+                    a.Ring(); b.Ring();
+                    CathedralDirector.Stir(0.12f);
+                    Secrets.Found(Secrets.OrbClap);
+                    Debug.Log($"[Cathedral] orb clap, {rang} bells rang");
+                }
                 target = Mathf.Clamp01((d - 0.35f) / 0.85f);
                 if (target > 0.6f) armedTime = Time.time;
 
@@ -54,6 +83,7 @@ namespace CathedralOfFeedback
                     if (SeedGarden.Instance != null) SeedGarden.Instance.Strike((pa + pb) * 0.5f, 1f);
                     if (Narrator.Instance != null) Narrator.Instance.OnDrop();
                     Debug.Log("[Cathedral] drop");
+                    Secrets.Found(Secrets.StringDrop);
                     // The payoff you can see: both orbs leave your hands and spiral round each
                     // other up through the lantern and out of the building, to a climbing run of bells.
                     Vector3 mid = (pa + pb) * 0.5f;
@@ -93,7 +123,7 @@ namespace CathedralOfFeedback
                         field.AddSplat(Vector3.Lerp(pa, pb, u), Color.Lerp(ca, cb, u), 0.8f + build, 0.035f);
                     }
             }
-            else if (line.enabled) line.enabled = false;
+            else { lastD = 1f; if (line.enabled) line.enabled = false; }
 
             build = Mathf.MoveTowards(build, target, dt * (target > build ? 3f : 1.5f));
             // A run of catches winds the room up the same way the string does.

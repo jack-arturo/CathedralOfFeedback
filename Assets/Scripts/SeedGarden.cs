@@ -239,6 +239,22 @@ namespace CathedralOfFeedback
             Kill(i);
         }
 
+        /// <summary>Every hanging bell sounds at once, as a chord. Returns how many rang.</summary>
+        public int RingAll()
+        {
+            int n = 0;
+            for (int i = 0; i < capacity; i++)
+            {
+                if (!seeds[i].alive || seeds[i].rising) continue;
+                seeds[i].flash = 1f;
+                PlayLater(0.012f * n, 0, seeds[i].freq, bellGain * 1.3f, GrabbableOrb.PanFor(seeds[i].pos));
+                Burst(seeds[i].pos, GrabbableOrb.ColorForNote(seeds[i].note, seeds[i].hue), 8, 1.4f);
+                if (seeds[i].parent != null) seeds[i].parent.Ring();
+                n++;
+            }
+            return n;
+        }
+
         /// <summary>Something lined up just right: a ring of sparks, a quick run of bells, a flash in the vault.</summary>
         public void Flourish(Vector3 pos, Color color)
         {
@@ -321,6 +337,7 @@ namespace CathedralOfFeedback
 
         void HarvestFinale()
         {
+            Secrets.Found(Secrets.Harvest);
             Vector3 top = LanternPoint;
             float size01 = Mathf.Clamp01(harvestTotal / 10f);
             var dsp = Dsp;

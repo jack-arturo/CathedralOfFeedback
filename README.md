@@ -24,6 +24,8 @@ AutoJack's spoken tour and five one-shots (bell, choir, breaking glass, the harv
 | Strum | throw a comet through hanging notes; three on one throw sets off a flourish | same |
 | Pop a planted note | poke it; pop several quickly and the pops climb the scale | touch it |
 | Harvest | clap with three or more notes hanging: they fly up into the lantern and the room drops | - |
+| Orb clap | clap the two held orbs together without stretching the string first: a crash, a shockwave, and every hanging bell sounds at once | same |
+| Whirl | keep an orb moving fast in circles for a couple of seconds: its trail closes into a ring, and six comets fly out of it | same |
 | Walk | each floor tile you step onto lights up, rings a soft note and sends a ripple out | same |
 | Build-up and drop | hold both orbs, stretch the string between them, bring them back together: the room drops and both orbs leave your hands, spiralling round each other up through the lantern and out of the building | same |
 | Change room mode | poke the small prism at your left hip (or pinch thumb + middle finger) | touch the prism, or A / X |
@@ -44,6 +46,11 @@ heartbeat, and the two orbs the only colour. Taking one answers at once; holding
 striking and catching bring the colour up, and any drop brings it all the way. With empty hands
 it sinks back over half a minute, but never below what the hanging bells hold up: leave notes
 around the room and it stays awake.
+
+**Eight secrets.** Each column carries a gem at head height, a grey ember until its secret is
+found: the string drop, the harvest, three catches in a row, the column rally, the bloom, the
+supernova, the orb clap and the whirl. Light all eight and the cathedral plays its finale. They
+go dark again for the next wearer.
 
 Holding an orb builds the arrangement (drums, bass and hats come in); letting go lets it settle.
 Raising an orb opens the filter on the beat. The eight columns are drums, tuned to the same scale.

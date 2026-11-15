@@ -50,7 +50,7 @@ namespace CathedralOfFeedback
 
         OrbGrabber holder;
         Vector3 home, lastPos, homeVel, baseScale, haloScale = Vector3.one, lean, lastPlant = Vector3.one * 999f, dwellAnchor;
-        float awayTime, invite, heldTime, dwell, ring, reform = 1f, ascend = -1f, ascendPhase;
+        float awayTime, invite, heldTime, dwell, ring, reform = 1f, ascend = -1f, ascendPhase, spin, whirlTick, whirlCooldown;
         Vector3 ascendFrom;
         const float AscendSeconds = 2.6f;
 
@@ -173,6 +173,29 @@ namespace CathedralOfFeedback
             lastPlant = transform.position; dwell = 0f; ring = 1f;
         }
 
+        void Whirl(Vector3 pos)
+        {
+            spin = 0f; whirlCooldown = 2f; ring = 1f;
+            float phase = Random.value * 60f;
+            for (int k = 0; k < 6; k++)
+            {
+                Vector3 dir = Quaternion.Euler(0f, phase + k * 60f, 0f) * Vector3.forward;
+                // Only loosely aimed, and they do not come back: about half of them find a column.
+                CometPool.Launch(pos, dir * 6f, ColorForNote((NoteIndex + k) % Scale.Length, baseHue), Frequency, this, 12f, false);
+            }
+            if (SeedGarden.Instance != null)
+            {
+                SeedGarden.Instance.Ring(pos, NoteColor, 64, 5f);
+                SeedGarden.Instance.Burst(pos, Color.white, 30, 4f);
+            }
+            if (FeedbackField.Instance != null) FeedbackField.Instance.Flash(0.35f);
+            var host = CathedralAudio.Instance;
+            if (host != null && host.Dsp != null) { host.Dsp.OneShot(0, Frequency * 2f, 0.22f, -0.4f); host.Dsp.OneShot(0, Frequency * 3f, 0.2f, 0.4f); host.Dsp.OneShot(1, 220f, 0.4f, 0f); }
+            CathedralDirector.Stir(0.2f);
+            Secrets.Found(Secrets.Whirl);
+            Debug.Log("[Cathedral] whirl");
+        }
+
         /// <summary>One of this orb's planted notes just sounded.</summary>
         public void Ring() { ring = 1f; }
 
@@ -245,7 +268,27 @@ namespace CathedralOfFeedback
                 else if (room && heldTime > 0.3f && heldCount < 2) dwell += dt;
                 else dwell = 0f;
                 if (dwell >= DwellSeconds) Plant();
+
+                // Whirl: keep the orb moving fast (circles are the easy way) and it winds up. Its
+                // trail grows into a closed ring of light, bells tick faster and higher, and when
+                // it is fully wound six comets fly out of it in all directions.
+                whirlCooldown -= dt;
+                spin = Speed > 1.5f && whirlCooldown <= 0f ? Mathf.Min(1f, spin + dt / 1.7f) : Mathf.Max(0f, spin - dt * 1.5f);
+                if (spin > 0.15f)
+                {
+                    whirlTick -= dt;
+                    if (whirlTick <= 0f)
+                    {
+                        whirlTick = Mathf.Lerp(0.2f, 0.07f, spin);
+                        var host = CathedralAudio.Instance;
+                        if (host != null && host.Dsp != null)
+                            host.Dsp.OneShot(0, FreqForNote(Mathf.Min(Scale.Length - 1, NoteIndex + (int)(spin * 6f)), rootHz) * 2f, 0.07f + 0.08f * spin, PanFor(pos));
+                    }
+                    if (SeedGarden.Instance != null) SeedGarden.Instance.Burst(pos, NoteColor, 1, 1.2f);
+                }
+                if (spin >= 1f) Whirl(pos);
             }
+            else spin = Mathf.Max(0f, spin - dt * 3f);
 
             var audioHost = CathedralAudio.Instance;
             if (audioHost != null && audioHost.Dsp != null)
@@ -276,7 +319,13 @@ namespace CathedralOfFeedback
                 halo.transform.localScale = haloScale * (1f - 0.55f * charge);
                 c.a = glow * 0.45f * (1f + charge); mpb.SetColor(ColorId, c); halo.SetPropertyBlock(mpb);
             }
-            if (Trail != null) { c.a = 1f; Trail.startColor = c; Trail.endColor = new Color(c.r, c.g, c.b, 0f); }
+            if (Trail != null)
+            {
+                // Wound up, the trail is long and wide enough to close into a ring, and burns towards white.
+                Color tc = Color.Lerp(c, Color.white, 0.6f * spin); tc.a = 1f;
+                Trail.startColor = tc; Trail.endColor = new Color(c.r, c.g, c.b, 0f);
+                if (ascend < 0f) { Trail.time = 1.4f + 1.8f * spin; Trail.widthMultiplier = 0.05f + 0.07f * spin; }
+            }
 
             var field = FeedbackField.Instance;
             if (field != null && live)
